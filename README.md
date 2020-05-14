@@ -11,7 +11,7 @@ When a transfer to the contract burn address is detected on the Ethereum chain, 
 ## Instructions
 1. `pip3 install -r requirements.txt`
 2. `python3 setup.py build && python3 setup.py install`
-3. For the federation run `./run_bridge` or `python3 -m bridge` and provide the following arguments:
+3. To run the client `./run_bridge` or `python3 -m bridge` and provide the following arguments:
 `--rpcconnect $HOST --rpocport $PORT --rpcuser $USER --rpcpass --oceankey $OCEANKEY $PASS --contract $CONTRACT --id $ID --ethkey $ETHKEY`
 
 Arguments:
