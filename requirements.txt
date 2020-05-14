@@ -1,0 +1,4 @@
+pyopenssl
+python-pkcs11
+cryptography
+web3
