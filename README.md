@@ -26,6 +26,7 @@ Arguments:
 - `--ethkey`: Private key for Ethereum token issuance
 - `--hsm`: Flag to enable key generation and signing with HSM
 - `--oceankey`: Private key for bridge ocean address
+- `--whitelist`: Whitelist policy
 
 Example use:
 

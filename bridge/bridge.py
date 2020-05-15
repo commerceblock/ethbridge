@@ -29,7 +29,8 @@ def parse_args():
     parser.add_argument('--ethkey', required=True, type=str, help="Private key for Ethereum issuance")
 
     parser.add_argument('--oceankey', default=PRVKEY, type=str, help="Private key for ocean bridge address")
-    parser.add_argument('--hsm', default=False, type=bool, help="Specify if an HSM will be used for signing blocks")
+    parser.add_argument('--hsm', default=False, type=bool, help="Specify if an HSM will be used for signing signing transactions")
+    parser.add_argument('--whitelist', default=0, type=int, help="Whitelist policy: 0. None. 1. Save tx if not whitelisted. 2. Return Eth tokens to address if not whitelisted.")
     return parser.parse_args()
 
 def main():
@@ -67,10 +68,15 @@ def main():
             if ocean_watch.stopped():
                 ocean_watch.join()
                 raise Exception("Node thread has stopped")
+            if eth_watch.stopped():
+                eth_watch.join()
+                raise Exception("Node thread has stopped")
             time.sleep(0.01)
     except KeyboardInterrupt:
         ocean_watch.stop()
         ocean_watch.join()
+        eth_watch.stop()
+        eth_watch.join()
 
 
 if __name__ == "__main__":
