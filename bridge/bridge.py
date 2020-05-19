@@ -29,6 +29,7 @@ def parse_args():
     parser.add_argument('--ethkey', required=True, type=str, help="Private key for Ethereum issuance")
 
     parser.add_argument('--oceankey', default=PRVKEY, type=str, help="Private key for ocean bridge address")
+    parser.add_argument('--oceanaddress', type=str, help="Ocean bridge deposit address")
     parser.add_argument('--hsm', default=False, type=bool, help="Specify if an HSM will be used for signing signing transactions")
     parser.add_argument('--whitelist', default=0, type=int, help="Whitelist policy: 0. None. 1. Save tx if not whitelisted. 2. Return Eth tokens to address if not whitelisted.")
     return parser.parse_args()
@@ -50,6 +51,7 @@ def main():
 
     ocnk = args.oceankey
     conf["oceankey"] = ocnk
+    conf["oceanaddress"] = args.oceanaddress
     conf["ethkey"] = args.oceankey
     conf["contract"] = args.oceankey
 
