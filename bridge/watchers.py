@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from web3 import Web3, HTTPProvider
+import web3.eth.accounts.wallet as EthWallet
 import json
 import sys
 import logging
@@ -22,7 +23,10 @@ class OceanWatcher(DaemonThread):
 
         self.signer = signer
         self.ocean = OceanWallet(conf)
-        self.eth = EthWallet(conf)
+        self.ethwallet = self.w3.eth.accounts.wallet
+        self.ethwallet.add(conf["ethkey"])
+        self.w3.defaultAccount=w3.eth.accounts[0]
+        self.contract = 
 
     def run(self):
         while not self.stopped():
@@ -68,7 +72,8 @@ class EthWatcher(DaemonThread):
 
         self.signer = signer
         self.ocean = OceanWallet(conf)
-        self.eth = EthWallet(conf)
+        self.ethwallet = self.w3.eth.accounts.wallet
+        self.ethwallet.add(conf["ethkey"])    
 
 
     def run(self):

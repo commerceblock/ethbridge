@@ -24,7 +24,7 @@ def parse_args():
     parser.add_argument('--rpcuser', required=True, type=str, help="RPC username for client")
     parser.add_argument('--rpcpassword', required=True, type=str, help="RPC password for client")
     parser.add_argument('--id', required=True, type=str, help="Infura web3 endpoint")
-
+    
     parser.add_argument('--contract',required=True, type=str, help="Contract address for Ethereum issuance")
     parser.add_argument('--ethkey', required=True, type=str, help="Private key for Ethereum issuance")
 
