@@ -43,7 +43,7 @@ class OceanWallet():
             for raddress in recieved:
                 if raddress["address"] == self.address:
                     for tx in raddress["txids"]:
-                        txin = self.ocean.gettransaction(tx)
+                        txin = self.ocean.getrawtransaction(tx,1)
                         deposit_txs.append(txin)
             return deposit_txs
         except Exception as e:
@@ -60,9 +60,10 @@ class OceanWallet():
                 addresses = []
                 for inputs in tx["vin"]:
                     txin = self.ocean.getrawtransaction(inputs["txid"],1)
-                    in_address = txin["vout"][inputs["n"]]["addresses"]["address"]
+                    for vout in txin["vout"]:
+                        if vout["n"] == inputs["vout"]: in_address = vout["scriptPubKey"]["addresses"][0]
                     addresses.append(in_address)
-                if len(set(the_list)) != 1:
+                if len(set(addresses)) != 1:
                     self.logger.warning("More than one address as input to: "+str(tx["txid"]))
                 tx["sendingaddress"] = addresses[0]
                 new_txs_with_address.append(tx)
