@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3OA
 import os
 import random
 import sys
@@ -18,7 +18,7 @@ PRVKEY = ""
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--rpconnect', required=True, type=str, help="Client RPC host")
+    parser.add_argument('--rpcconnect', required=True, type=str, help="Client RPC host")
     parser.add_argument('--rpcport', required=True, type=str, help="Client RPC port")
     parser.add_argument('--rpcuser', required=True, type=str, help="RPC username for client")
     parser.add_argument('--rpcpassword', required=True, type=str, help="RPC password for client")
@@ -45,14 +45,14 @@ def main():
     conf["rpcuser"] = args.rpcuser
     conf["rpcpassword"] = args.rpcpassword
     conf["rpcport"] = args.rpcport
-    conf["rpcconnect"] = args.rpconnect
+    conf["rpcconnect"] = args.rpcconnect
     conf["id"] = args.id
 
     ocnk = args.oceankey
     conf["oceankey"] = ocnk
     conf["oceanaddress"] = args.oceanaddress
-    conf["ethkey"] = args.oceankey
-    conf["contract"] = args.oceankey
+    conf["ethkey"] = args.ethkey
+    conf["contract"] = args.contract
 
     signer = None
     if args.hsm:
