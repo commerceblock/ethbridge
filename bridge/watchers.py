@@ -80,9 +80,9 @@ class EthWatcher(DaemonThread):
             recieved_txs = self.eth.get_burn_txs(self.conf)
             #check to see if any have not already been minted
             new_txs = self.ocean.check_deposits(self.conf, recieved_txs)
-            new_txs = self.ocean.get_sending_address(new_txs)
+            new_txs = self.eth.get_sending_address(new_txs)
             for tx in new_txs:
-                self.logger.info("New Ocean deposit: "+tx["txid"]+" Sending address: "+tx["address"]+" Amount: "+str(tx["amount"]))
+                self.logger.info("New Eth burn: "+tx["txid"]+" Sending address: "+tx["address"]+" Amount: "+str(tx["amount"]))
             #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
             not_whitelisted = self.ocean.send_tokens(new_txs)
 

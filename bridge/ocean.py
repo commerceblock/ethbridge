@@ -74,7 +74,22 @@ class OceanWallet():
 
     def check_deposits(self, conf, new_txs):
         #check that the new transactions recieved have not been previously paid out from the Ocean deposit wallet
-        return new_txs
+        txlist = self.ocean.listtransactions("*",999999)
+        sent = []
+        for tx in txlist:
+            if tx["category"] == "send":
+                rawtx = self.ocean.getrawtransaction(tx["txid"],1)
+                try:
+                    for outp in rawtx["vout"]:
+                        if outp["scriptPubKey"]["type"] == "nulldata":
+                            sent.append(outp["scriptPubKey"]["hex"][4:])
+                except:
+                    self.logger.warning("sent transaction without eth txid label")
+        checked_txs = []
+        for new_tx in new_txs:
+            if new_tx["txid"] not in sent:
+                checked_txs.append(new_tx)
+        return checked_txs
 
     def send_tokens(self, payment_list):
         non_whielisted = []
@@ -82,7 +97,7 @@ class OceanWallet():
             for payment in payment_list:
                 is_whitelisted = self.querywhitelist(payment["address"])
                 if is_whitelisted:
-                    txid = self.ocean.sendanytoaddress(payment["address"],payment["amount"])
+                    txid = self.ocean.sendanytoaddress(payment["address"],payment["amount"],"","",True,False,1,payment["txid"])
                 else:
                     self.logger.warning("Ocean payment: "+payment["address"]+" from Eth TxID "+payment["txid"]+" not whitelisted")
                     non_whielisted.append(payment)
@@ -90,11 +105,6 @@ class OceanWallet():
             self.logger.warning("failed ocean payment tx generation: {}".format(e))
             return None
         return non_whielisted
-
-
-
-
-
 
 
 

@@ -9,6 +9,7 @@ import time
 import argparse
 from decimal import *
 from pdb import set_trace
+from .test_framework.authproxy import AuthServiceProxy, JSONRPCException
 from .watchers import OceanWatcher
 from .watchers import EthWatcher
 from .hsm import HsmPkcs11
