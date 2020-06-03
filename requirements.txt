@@ -3,3 +3,4 @@ python-pkcs11
 cryptography
 web3
 pyOpenSSL
+ethereum-keys

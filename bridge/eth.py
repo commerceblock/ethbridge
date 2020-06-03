@@ -6,9 +6,9 @@ import sys
 from .test_framework.authproxy import JSONRPCException
 from eth_account import Account
 import collections
-from .utils import pub_to_eth_address
+from .utils import pub_bytes_to_eth_address
 import json
-
+from time import sleep, time
 
 class EthWalletError(Exception):
     def __init__(self, *args):
@@ -43,34 +43,42 @@ class EthWallet():
         self.pegout_address=self.contract.functions.pegoutAddress
         print('pegout address: {}'.format(self.pegout_address))
         #A filter for the ethereum log for pegout events
-        filter_builder=self.contract.events.Transfer().build_filter()
-        filter_builder.fromBlock=0
-        filter_builder.argument_filters={'to': self.pegout_address}
-        self.pegout_filter=filter_builder.deploy(self.w3)
+ #        self.pegout_filter=filter_builder.deploy()
         #Mint events are transfers from the zero address
-        filter_builder=self.contract.events.Transfer.build_filter()
-        filter_builder.fromBlock=0
-        filter_builder.argument_filters={'from': "0x0000000000000000000000000000000000000000"}
-        self.mint_filter = filter_builder.deploy(self.w3)
+        self.mint_filter = self.contract.events.Transfer.createFilter(fromBlock=0,argument_filters={'from': "0x0000000000000000000000000000000000000000"})
+        self.pegin_filter = self.contract.events.Pegin.createFilter(fromBlock=0)
         self.init_minted()
-        print(self.minted)
+        print("minted: {}".format(self.minted))
 
     #Get a list of previously minted pegin transactions
     def init_minted(self):
+        print("init minted...")
         self.minted=set()
-        self.update_minted_from_events(self.mint_filter.get_all_entries())
-                                            
+#        entries=self.mint_filter.get_all_entries()
+        entries=None
+        if entries:
+            print("Found {} old entries".format(len(entries)))                                            
+            self.update_minted_from_events(entries)
+        print("...init minted finished")                                            
+
     def update_minted(self):
-        self.update_minted_from_events(self.mint_filter.get_new_entries())
-                                            
+        print("update minted...")
+        entries=self.mint_filter.get_new_entries()
+        if entries:
+            print("Found {} new entries".format(len(entries)))                                            
+            self.update_minted_from_events(entries)
+        print("...update minted finished")
+        
     def update_minted_from_events(self, events):
         for mint_event in events:
-            pegin=Transfer(to=Address(address=mint_event['to']), amount=mint_event['amount'], transactionHash=mint_event['transactionHash']);
-            pegin_filter=self.contract.events.Pegin(fromBlock="0x0", argument_filters={'transactionHash': pegin['transactionHash']})
-            pegin_events=pegin_filter.get_all_events()
-            if len(pegin_events) != 1:
-                raise EthWalletError('there should only be one pegin event per pegin transaction')
-            pegin['to']['nonce']=pegin_events[0]['nonce']
+            print(mint_event)
+            pegin=Transfer(to=Address(address=mint_event['to']), amount=mint_event['amount'], transactionHash=mint_event['transactionHash'])
+            #pegin_filter_builder.argument_filters={'transactionHash': pegin['transactionHash']}
+            #pegin_filter=filter_builder.deploy(self.w3)
+            #pegin_events=pegin_filter.get_all_events()
+            #if len(pegin_events) != 1:
+            #    raise EthWalletError('there should only be one pegin event per pegin transaction')
+            #pegin['to']['nonce']=pegin_events[0]['nonce']
             self.minted.add(pegin)
 
     def get_burn_txs(self):
@@ -94,6 +102,7 @@ class EthWallet():
                                             
     def check_deposits(self, new_txs: [Transfer]):
         #filter the transactions to previously unminted ones
+        print("updating minted, time = {}".format(time()))
         self.update_minted()
         filtered_list=list(set(filter(lambda x: not self.is_already_minted(x), new_txs)))
         return filtered_list
@@ -101,11 +110,11 @@ class EthWallet():
     def mint_tokens(self, payment_list: [Transfer]):
         minted_txs = []
         previously_minted_txs = []
-        txnonce=self.w3.eth.getTransactionCount(self.address)
+        txnonce=self.w3.eth.getTransactionCount(self.account.address)
         try:
             for payment in payment_list:
                 #mint the required tokens
-                to = eth_pub_to_address(codecs.encode(bytes.fromhex(payment['to']['pubkey']),'hex'))
+                to = pub_bytes_to_eth_address(bytes.fromhex(payment['to']['pubkey']))
                 nonce = payment['to']['nonce']
                 gas_estimate=self.contract.functions.pegin(to, payment['amount'], nonce)
                 if gas_estimate > self.txn_gas_limit:

@@ -33,13 +33,13 @@ class OceanWatcher(DaemonThread):
             #get all addresses and amounts of all transactions recieved to the deposit address
             recieved_txs = self.ocean.get_deposit_txs()
             #check to see if any have not already been minted
-            new_txs = self.eth.check_deposits(self.conf, recieved_txs)
+            new_txs = self.eth.check_deposits(recieved_txs)
             #get address that the deposit has been sent from
             new_txs = self.ocean.get_sending_address(new_txs)
             for tx in new_txs:
                 self.logger.info("New Ocean deposit: "+tx["txid"]+" Sending address: "+tx["address"]+" Amount: "+str(tx["amount"]))
             #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
-            mint_txs = self.eth.mint_tokens(self.conf, new_txs)
+            mint_txs = self.eth.mint_tokens(new_txs)
 
             for tx in mint_txs:
                 self.logger.info("Mint Eth tokens: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
@@ -78,7 +78,7 @@ class EthWatcher(DaemonThread):
             start_time = int(time())
 
             #get all addresses and amounts of all transactions recieved to the deposit address
-            recieved_txs = self.eth.get_burn_txs(self.conf)
+            recieved_txs = self.eth.get_burn_txs()
             #check to see if any have not already been minted
             new_txs = self.ocean.check_deposits(self.conf, recieved_txs)
             new_txs = self.ocean.get_sending_address(new_txs)
