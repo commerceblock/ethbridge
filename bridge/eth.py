@@ -1,5 +1,5 @@
 #!/usr/bin/env python3A
-from web3 import Web3, HTTPProvider
+from web3 import Web3, HTTPProvider, WebsocketProvider
 from web3.middleware import local_filter_middleware
 import logging
 import sys
@@ -9,6 +9,8 @@ import collections
 from .utils import pub_bytes_to_eth_address
 import json
 from time import sleep, time
+import ssl
+import pathlib
 
 class EthWalletError(Exception):
     def __init__(self, *args):
@@ -30,10 +32,14 @@ class EthWallet():
     Transfer = collections.namedtuple('Transfer', 'from_ to amount transactionHash')
     
     def __init__(self, conf):
-        self.w3 = Web3(Web3.HTTPProvider(conf["id"]))
+        self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        localhost_pem = pathlib.Path("/Users/lawrence/Projects/ethereum/ethbridge/Amazon_Root_CA_1.pem")
+        self.ssl_context.load_verify_locations(localhost_pem)
+        self.provider=Web3.WebsocketProvider(conf["id"],websocket_kwargs={'ssl': self.ssl_context})
+        self.w3 = Web3(self.provider)
         if not self.w3.isConnected():
             raise EthWalletError('web3 failed to connect')
-        self.w3.middleware_onion.add(local_filter_middleware)
+#        self.w3.middleware_onion.add(local_filter_middleware)
         self.logger = logging.getLogger(self.__class__.__name__)
         with open('contract/wrapped_DGLD.json') as json_file:
             abi=json.loads(json_file.read())['abi']
@@ -43,10 +49,19 @@ class EthWallet():
         self.pegout_address=self.contract.functions.pegoutAddress
         print('pegout address: {}'.format(self.pegout_address))
         #A filter for the ethereum log for pegout events
- #        self.pegout_filter=filter_builder.deploy()
+        filter_builder=self.contract.events.Transfer().build_filter()
+        filter_builder.fromBlock=0
+        filter_builder.argument_filters={'to': self.pegout_address}
+        self.pegout_filter=filter_builder.deploy(self.w3)
         #Mint events are transfers from the zero address
-        self.mint_filter = self.contract.events.Transfer.createFilter(fromBlock=0,argument_filters={'from': "0x0000000000000000000000000000000000000000"})
-        self.pegin_filter = self.contract.events.Pegin.createFilter(fromBlock=0)
+        filter_builder=self.contract.events.Transfer.build_filter()
+        filter_builder.fromBlock=0
+        filter_builder.argument_filters={'from': "0x0000000000000000000000000000000000000000"}
+        self.mint_filter = filter_builder.deploy(self.w3)
+
+        #Subscribe to events
+        
+        
         self.init_minted()
         print("minted: {}".format(self.minted))
 
@@ -54,8 +69,7 @@ class EthWallet():
     def init_minted(self):
         print("init minted...")
         self.minted=set()
-#        entries=self.mint_filter.get_all_entries()
-        entries=None
+        entries=self.mint_filter.get_all_entries()
         if entries:
             print("Found {} old entries".format(len(entries)))                                            
             self.update_minted_from_events(entries)
@@ -63,7 +77,8 @@ class EthWallet():
 
     def update_minted(self):
         print("update minted...")
-        entries=self.mint_filter.get_new_entries()
+        entries=None
+        self.mint_filter.get_new_entries()
         if entries:
             print("Found {} new entries".format(len(entries)))                                            
             self.update_minted_from_events(entries)
@@ -73,12 +88,12 @@ class EthWallet():
         for mint_event in events:
             print(mint_event)
             pegin=Transfer(to=Address(address=mint_event['to']), amount=mint_event['amount'], transactionHash=mint_event['transactionHash'])
-            #pegin_filter_builder.argument_filters={'transactionHash': pegin['transactionHash']}
-            #pegin_filter=filter_builder.deploy(self.w3)
-            #pegin_events=pegin_filter.get_all_events()
-            #if len(pegin_events) != 1:
-            #    raise EthWalletError('there should only be one pegin event per pegin transaction')
-            #pegin['to']['nonce']=pegin_events[0]['nonce']
+            pegin_filter_builder.argument_filters={'transactionHash': pegin['transactionHash']}
+            pegin_filter=filter_builder.deploy(self.w3)
+            pegin_events=pegin_filter.get_all_events()
+            if len(pegin_events) != 1:
+                raise EthWalletError('there should only be one pegin event per pegin transaction')
+            pegin['to']['nonce']=pegin_events[0]['nonce']
             self.minted.add(pegin)
 
     def get_burn_txs(self):
