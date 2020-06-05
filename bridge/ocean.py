@@ -149,7 +149,7 @@ class OceanWallet():
         
     def check_deposits(self, conf, new_txs: [Transfer]):
         #check that the new transactions recieved have not been previously paid out from the Ocean deposit wallet
-        self.update_payouts()
+        self.update_sent()
         filtered_list=list(set(filter(lambda x: not self.is_already_sent(x), new_txs)))
         return filtered_list
 
