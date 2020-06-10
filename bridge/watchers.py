@@ -11,7 +11,7 @@ from .eth import EthWallet
 from .test_framework.authproxy import JSONRPCException
 from .connectivity import getoceand
 
-INTERVAL_DEFAULT = 60
+INTERVAL_DEFAULT = 5
 
 class OceanWatcher(DaemonThread):
     def __init__(self, conf, signer=None):
@@ -34,15 +34,21 @@ class OceanWatcher(DaemonThread):
             recieved_txs = self.ocean.get_deposit_txs()
             #check to see if any have not already been minted
             new_txs = self.eth.check_deposits(recieved_txs)
+            #print("ocean watcher - new_txs: {}".format(new_txs))
             #get address that the deposit has been sent from
             new_txs = self.ocean.get_sending_address(new_txs)
-            for tx in new_txs:
-                self.logger.info("New Ocean deposit: "+tx["txid"]+" Sending address: "+tx["address"]+" Amount: "+str(tx["amount"]))
-            #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
-            mint_txs = self.eth.mint_tokens(new_txs)
+            if new_txs:
+                for tx in new_txs:
+                    print("tx: {}".format(tx))
+                    self.logger.info("New Ocean deposit: "+tx["txid"]+" Sending address: "+str(tx["sendingaddress"])+" Amount: "+str(tx["amount"]))
+                #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
+                mint_txs = self.eth.mint_tokens(new_txs)
+            else:
+                mint_txs=[]
 
-            for tx in mint_txs:
-                self.logger.info("Mint Eth tokens: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
+            if mint_txs:
+                for tx in mint_txs:
+                    self.logger.info("Mint Eth tokens: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
                 
             elapsed_time = time() - start_time
             sleep(self.interval / 2 - (elapsed_time if elapsed_time < self.interval / 2 else 0))

@@ -5,6 +5,7 @@ from .test_framework.authproxy import JSONRPCException
 from .connectivity import getoceand
 import bisect
 import collections
+from .utils import pub_to_dgld_address
 
 class OceanWallet():
     #An ocean address together with a pubkey and pegin nonce
@@ -17,18 +18,24 @@ class OceanWallet():
     #Note that txid is stored as a string, so the comparison is lexicographic by ASCII value
     class sorted_tx(dict):
       def __gt__(self, other):
-          inThis = int(self['blockindex'])
-          inThat = int(other['blockindex'])
+          inThis = int(self['blocktime'])
+          inThat = int(other['blocktime'])
           if inThis == inThat:
               return self['txid'] > other['txid']
           return inThis > inThat
 
       def __lt__(self, other):
-          inThis = int(self['blockindex'])
-          inThat = int(other['blockindex'])
+          inThis = int(self['blocktime'])
+          inThat = int(other['blocktime'])
           if inThis == inThat:
               return self['txid'] < other['txid']
           return inThis < inThat
+
+      def __hash__(self):
+        return hash(self.__key())
+
+      def __key(self):
+        return tuple(sorted(self.items()))
 
     #A key counter beginning at 1
     class key_counter(dict):
@@ -49,6 +56,7 @@ class OceanWallet():
         self.deposit_address_nonce = self.key_counter()
         #Check if the node wallet already has the deposit key before importing
         validate = self.ocean.validateaddress(self.address)
+        print(validate)
         have_va_addr = bool(validate["ismine"])
         watch_only = bool(validate["iswatchonly"])
         have_va_prvkey = have_va_addr and not watch_only
@@ -81,18 +89,27 @@ class OceanWallet():
             
     def get_deposit_txs(self):
         deposit_txs = []
+        #print("get_deposit_txs")
         try:
-            recieved = self.ocean.listreceivedbyaddress()
-            for raddress in recieved:
+            received = self.ocean.listreceivedbyaddress()
+            for raddress in received:
                 if raddress["address"] == self.address:
+                    #print("**** raddress: {}".format(raddress))
+                    #print("**** address: {}".format(raddress["address"]))
+                    #print("**** self.address: {}".format(self.address))
                     for tx in raddress["txids"]:
+                        print("***** get_deposit_txs tx: {}".format(tx))
                         address_txs = []
-                        txin = self.sorted_tx(self.ocean.gettransaction(tx))
+                        txin=self.ocean.getrawtransaction(tx,1)
+                        txin["amount"]=self.ocean.gettransaction(tx)["amount"]
+                        txin = self.sorted_tx(txin)
+                        print("***** get_deposit_txs: txin: {}".format(txin))
                         #Insert the transactions by sorted_tx order
-                        bisection.insort_left(deposit_txs, txin)
+                        bisect.insort_left(deposit_txs, txin)
+            print("***** get_deposit_txs: len(deposit_txs): {}".format(len(deposit_txs)))
             return deposit_txs
         except Exception as e:
-            self.logger.warning("failed to get ocean deposit transactions: {}".format(e))
+            self.logger.warning("failed to get ocean deposit transactions: {}".format(str(e)))
             return None
 
     def get_sending_address(self, new_txs):
@@ -104,23 +121,46 @@ class OceanWallet():
         #if the other input addresses are different, we print a log/warning
         try:
             for tx in new_txs:
+                #print("get_sending_address: tx: {}".format(tx))
                 addresses = []
                 for inputs in tx["vin"]:
+                    #print("************** get_sending: inputs: {}".format(inputs))
                     txin = self.ocean.getrawtransaction(inputs["txid"],1)
-                    in_address = txin["vout"][inputs["n"]]["addresses"]["address"]
-                    if txin["vout"][inputs["n"]]["type"] == "pubkeyhash":
-                        in_pubkey=inputs["scriptPubKey"]["hex"][-66:]
+                    #print("**** txin")
+                    for vout in txin["vout"]:
+                        out=dict(txin["vout"][inputs["vout"]])
+                        #print("***** out: {}".format(out))
+                        if out['scriptPubKey']['type'] == 'pubkeyhash':
+                            #print("****inputs: {}".format(inputs))
+                            in_pubkey=inputs["scriptSig"]["hex"][-66:]
+                            #print("in_pubkey: {}".format(in_pubkey))
+                            in_address=pub_to_dgld_address(bytes.fromhex(in_pubkey))
+                            #print("in_address: {}".format(in_address))
+                            
                     else:
                         in_pubkey="unknown"
-                    #Address, pubkey, pegin nonce
-                    addresses.append(Address(address=in_address, pubkey=in_pubkey))
-                tx["sendingaddress"]=addresses[0]
-                if len(address_pubkeys) != 1:
-                    self.logger.warning("More than one address as input to: {}".format(["txid"]))
+                        in_address="unknown"
+                        #Address, pubkey, pegin nonce
+                    #print("**** appending address")
+                    addresses.append(self.Address(address=in_address, pubkey=in_pubkey, nonce=-1))
+                #print("**** setting sending address")
+                address=addresses[0]
+                #print("**** setting sending address 2")
+                tx["sendingaddress"]=address
+                #print("***tx['sendingaddress']: {}".format(str(tx["sendingaddress"])))
+                #print("***tx['sendingaddress']['pubkey']: {}".format(str(tx['sendingaddress'][1])))
+                #print("**** finished setting sending address")
+                if len(addresses) != 1:
+                    self.logger.warning("More than one address as input to txid: {}. Addresses: {}".format(tx["txid"], addresses))
                 #Can only peg in if the send address' pub key is known.
-                elif tx["sendingaddress"]["pubkey"] != "unknown":
-                    tx["sending_address"]["nonce"]=self.deposit_address_nonce.increment(tx["sendingaddress"]["address"])
-                new_txs_with_address.append(tx)
+                elif tx['sendingaddress'][1] != "unknown":
+                    #print("******* incrementing nonce")
+                    addrstr=tx['sending_address'][0]
+                    #print("******addrstr: {}".format(addrstr))
+                    tx['sending_address'][2]=self.deposit_address_nonce.increment(addrstr)
+                    #print("**** appending txs")
+                    new_txs_with_address.append(tx)
+            print("new_txs_with_address: {}".format(new_txs_with_address))
             return new_txs_with_address
         except Exception as e:
             self.logger.warning("failed get sending address ocean: {}".format(e))
@@ -143,7 +183,7 @@ class OceanWallet():
         
     def is_already_sent(self, tx: Transfer):
         for item in self.sent:
-            if(tx['toNonce'] == item['toNonce']):
+            if(tx['to']['nonce'] == item['to']['nonce']):
                 return True
         return False
         

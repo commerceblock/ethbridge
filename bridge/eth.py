@@ -1,4 +1,4 @@
-#!/usr/bin/env python3A
+#!/usr/bin/env python3
 from web3 import Web3, HTTPProvider, WebsocketProvider
 from web3.middleware import local_filter_middleware
 import logging
@@ -60,8 +60,6 @@ class EthWallet():
         self.mint_filter = filter_builder.deploy(self.w3)
 
         #Subscribe to events
-        
-        
         self.init_minted()
         print("minted: {}".format(self.minted))
 
@@ -116,10 +114,16 @@ class EthWallet():
         return False
                                             
     def check_deposits(self, new_txs: [Transfer]):
+        if not new_txs:
+            return
         #filter the transactions to previously unminted ones
         print("updating minted, time = {}".format(time()))
         self.update_minted()
-        filtered_list=list(set(filter(lambda x: not self.is_already_minted(x), new_txs)))
+        filtered_list=[]
+        for tx in new_txs:
+            if not self.is_already_minted(tx):
+                filtered_list.append(tx)
+#        filtered_list=list(set(filter(lambda x: not self.is_already_minted(x), new_txs)))
         return filtered_list
 
     def mint_tokens(self, payment_list: [Transfer]):
@@ -129,8 +133,9 @@ class EthWallet():
         try:
             for payment in payment_list:
                 #mint the required tokens
-                to = pub_bytes_to_eth_address(bytes.fromhex(payment['to']['pubkey']))
-                nonce = payment['to']['nonce']
+                print("*** payment: {}".format(payment))
+                to = pub_bytes_to_eth_address(bytes.fromhex(payment['sendingaddress'][1]))
+                nonce = payment['sendingaddress'][2]
                 gas_estimate=self.contract.functions.pegin(to, payment['amount'], nonce)
                 if gas_estimate > self.txn_gas_limit:
                     raise Exception('gas limit exceeded: ' + str(gas_estimate) + ' > ' + str(self.txn_gas_limit))
