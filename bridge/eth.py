@@ -44,6 +44,9 @@ class EthWallet():
         with open('contract/wrapped_DGLD.json') as json_file:
             abi=json.loads(json_file.read())['abi']
         self.account=Account.from_key(conf['ethkey'])
+        self.key=conf['ethkey']
+        print("ethaddress: {} {}".format(self.account.address, conf['ethaddress']))
+        assert(self.account.address == conf['ethaddress'])
         self.contract=self.w3.eth.contract(address=conf['contract'],abi=abi)
         #Get the pegout address
         self.pegout_address=self.contract.functions.pegoutAddress
@@ -58,7 +61,7 @@ class EthWallet():
         filter_builder.fromBlock=0
         filter_builder.argument_filters={'from': "0x0000000000000000000000000000000000000000"}
         self.mint_filter = filter_builder.deploy(self.w3)
-
+        self.txn_gas_limit=1000000
         #Subscribe to events
         self.init_minted()
         print("minted: {}".format(self.minted))
@@ -117,7 +120,7 @@ class EthWallet():
         if not new_txs:
             return
         #filter the transactions to previously unminted ones
-        print("updating minted, time = {}".format(time()))
+        print("eth.check_deposits(): updating minted, time = {}".format(time()))
         self.update_minted()
         filtered_list=[]
         for tx in new_txs:
@@ -129,27 +132,57 @@ class EthWallet():
     def mint_tokens(self, payment_list: [Transfer]):
         minted_txs = []
         previously_minted_txs = []
-        txnonce=self.w3.eth.getTransactionCount(self.account.address)
         try:
             for payment in payment_list:
+                txnonce=self.w3.eth.getTransactionCount(Web3.toChecksumAddress(self.account.address))
                 #mint the required tokens
                 print("*** payment: {}".format(payment))
-                to = pub_bytes_to_eth_address(bytes.fromhex(payment['sendingaddress'][1]))
-                nonce = payment['sendingaddress'][2]
-                gas_estimate=self.contract.functions.pegin(to, payment['amount'], nonce)
-                if gas_estimate > self.txn_gas_limit:
-                    raise Exception('gas limit exceeded: ' + str(gas_estimate) + ' > ' + str(self.txn_gas_limit))
-                txn = self.contract.functions.pegin(to, payment['amount'], nonce)\
-                    .buildTransaction({
-                        'chainId': 3,
-                        'gas': gas_estimate,
-                        'nonce': txnonce
-                        })
+                to = pub_bytes_to_eth_address(bytes.fromhex(payment['sendingaddress'].pubkey))
+                nonce = payment['sendingaddress'].nonce
+                amount=0
+                for key in payment['amount']:
+                    amount=amount+payment['amount'][key]
+                amount=int(amount*100000000)
+                pegin_function=self.contract.functions.pegin(to, amount, nonce)
+                gasPrice=self.w3.eth.gasPrice
+                print("*************** Getting account balance...")
+
+
+#                accountBalanceTx=self.contract.functions.balanceOfWeb3.toChecksumAddress(self.account.address)).buildTransaction({
+#                    'from':self.account.address,
+#                    'nonce': txnonce,
+#                    'gas': 100000,
+#                    'gasPrice': gasPrice
+#                })
+#                signed_tx=self.account.signTransaction(accountBalanceTx)
+#                txn_hash=self.w3.eth.sendRawTransaction(signed_tx.rawTransaction)
+#                txn_receipt = self.w3.eth.waitForTransactionReceipt(txn_hash)
+
+
+#                raw_balance = self.contract.call().balanceOf(self.account.address)
+                raw_balance = self.contract.functions.balanceOf(self.account.address).call({'from': self.account.address})
+                balance = raw_balance // 100000000
+                print("raw account balance: {}".format(raw_balance))
+                print("account balance: {}".format(balance))
+                      
+#                print("gasPrice: {}".format(gasPrice))
+#                print("Estimating gas...")
+#                gas_estimate=pegin_function.estimateGas()
+#                print("gas_estimate: {}".format(gas_estimate))
+#                gas_cost=gas_estimate*gasPrice
+#                print("...finished estimating gas.")
+#                print("gas_estimate: {}".format(gas_estimate))
+#                print("txnonce: {}".format(txnonce))
+#                if gas_estimate > self.txn_gas_limit:
+#                    raise Exception('gas limit exceeded: ' + str(gas_estimate) + ' > ' + str(self.txn_gas_limit))
+                print("txnonce: {}".format(txnonce))
+                txn = pegin_function.buildTransaction({'nonce': txnonce, 'from': self.account.address})
+#                        'gas': gas_cost,
                 signed_txn = self.account.sign_transaction(txn)
                 print(signed_txn)
-                self.w3.eth.sendRawTransaction(signed_txn.rawTransaction)
-                txnonce=txnonce+1
-                minted_txs.add(signed_txn)
+                txn_hash=self.w3.eth.sendRawTransaction(signed_txn.rawTransaction)
+                txn_receipt = w3.eth.waitForTransactionReceipt(txn_hash)
+                minted_txs.add(txn_hash, txn_receipt)
             return minted_txs
         except Exception as e:
             self.logger.warning("failed ocean payment tx generation: {}".format(e))

@@ -26,11 +26,13 @@ def parse_args():
     
     parser.add_argument('--contract',required=True, type=str, help="Contract address for Ethereum issuance")
     parser.add_argument('--ethkey', required=True, type=str, help="Private key for Ethereum issuance")
+    parser.add_argument('--ethaddress', required=True, type=str, help="Address for Ethereum issuance")
 
     parser.add_argument('--oceankey', default=PRVKEY, type=str, help="Private key for ocean bridge address")
     parser.add_argument('--oceanaddress', type=str, help="Ocean bridge deposit address")
     parser.add_argument('--hsm', default=False, type=bool, help="Specify if an HSM will be used for signing signing transactions")
     parser.add_argument('--whitelist', default=0, type=int, help="Whitelist policy: 0. None. 1. Save tx if not whitelisted. 2. Return Eth tokens to address if not whitelisted.")
+    parser.add_argument('--interval', default=60, type=int, help="The frequency at which the daemon checks for new transactions.")
     return parser.parse_args()
 
 def main():
@@ -42,6 +44,7 @@ def main():
     )
 
     conf = {}
+    conf["interval"] = args.interval
     conf["rpcuser"] = args.rpcuser
     conf["rpcpassword"] = args.rpcpassword
     conf["rpcport"] = args.rpcport
@@ -52,6 +55,7 @@ def main():
     conf["oceankey"] = ocnk
     conf["oceanaddress"] = args.oceanaddress
     conf["ethkey"] = args.ethkey
+    conf["ethaddress"] = args.ethaddress
     conf["contract"] = args.contract
 
     signer = None

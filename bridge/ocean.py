@@ -91,42 +91,46 @@ class OceanWallet():
         deposit_txs = []
         #print("get_deposit_txs")
         try:
-            received = self.ocean.listreceivedbyaddress()
-            for raddress in received:
+            unspent = self.ocean.listunspent()
+            for raddress in unspent:
                 if raddress["address"] == self.address:
                     #print("**** raddress: {}".format(raddress))
                     #print("**** address: {}".format(raddress["address"]))
                     #print("**** self.address: {}".format(self.address))
-                    for tx in raddress["txids"]:
-                        print("***** get_deposit_txs tx: {}".format(tx))
-                        address_txs = []
-                        txin=self.ocean.getrawtransaction(tx,1)
-                        txin["amount"]=self.ocean.gettransaction(tx)["amount"]
-                        txin = self.sorted_tx(txin)
-                        print("***** get_deposit_txs: txin: {}".format(txin))
-                        #Insert the transactions by sorted_tx order
-                        bisect.insort_left(deposit_txs, txin)
-            print("***** get_deposit_txs: len(deposit_txs): {}".format(len(deposit_txs)))
+                    tx=raddress["txid"]
+                    #print("***** get_deposit_txs tx: {}".format(tx))
+                    txin=self.ocean.getrawtransaction(tx,1)
+                    txin["amount"]=self.ocean.gettransaction(tx)["amount"]
+                    print("***** get_deposit_txs amount: {}".format(txin["amount"]))
+                    txin = self.sorted_tx(txin)
+                    #print("***** get_deposit_txs: txin: {}".format(txin))
+                    #Insert the transactions by sorted_tx order
+                    bisect.insort_left(deposit_txs, txin)
+            #print("***** get_deposit_txs: len(deposit_txs): {}".format(len(deposit_txs)))
             return deposit_txs
         except Exception as e:
             self.logger.warning("failed to get ocean deposit transactions: {}".format(str(e)))
             return None
 
     def get_sending_address(self, new_txs):
+        #print("******************* get sending address *********************")
         new_txs_with_address = []
         #Only p2pkh addresses can be wrapped
         new_unbridgable_txs = []
         #get the sending address
         #if there are more than 1 input, we take the first address
         #if the other input addresses are different, we print a log/warning
+        counter=0
         try:
             for tx in new_txs:
                 #print("get_sending_address: tx: {}".format(tx))
                 addresses = []
+                #print("len(tx[\"vin\"]): {}".format(len(tx["vin"])))
                 for inputs in tx["vin"]:
                     #print("************** get_sending: inputs: {}".format(inputs))
                     txin = self.ocean.getrawtransaction(inputs["txid"],1)
                     #print("**** txin")
+                    #print("len(txin[\"vout\"]): {}".format(len(txin["vout"])))
                     for vout in txin["vout"]:
                         out=dict(txin["vout"][inputs["vout"]])
                         #print("***** out: {}".format(out))
@@ -136,31 +140,26 @@ class OceanWallet():
                             #print("in_pubkey: {}".format(in_pubkey))
                             in_address=pub_to_dgld_address(bytes.fromhex(in_pubkey))
                             #print("in_address: {}".format(in_address))
-                            
-                    else:
-                        in_pubkey="unknown"
-                        in_address="unknown"
-                        #Address, pubkey, pegin nonce
-                    #print("**** appending address")
-                    addresses.append(self.Address(address=in_address, pubkey=in_pubkey, nonce=-1))
+                        else:
+                            in_pubkey="unknown"
+                            in_address="unknown"
+                            #Address, pubkey, pegin nonce
+                        #print("**** appending address")
+                        addresses.append(self.Address(address=in_address, pubkey=in_pubkey, nonce=-1))
+                        counter=counter+1
+                #print("**** addresses: {}".format(addresses))
                 #print("**** setting sending address")
                 address=addresses[0]
-                #print("**** setting sending address 2")
-                tx["sendingaddress"]=address
-                #print("***tx['sendingaddress']: {}".format(str(tx["sendingaddress"])))
-                #print("***tx['sendingaddress']['pubkey']: {}".format(str(tx['sendingaddress'][1])))
-                #print("**** finished setting sending address")
                 if len(addresses) != 1:
                     self.logger.warning("More than one address as input to txid: {}. Addresses: {}".format(tx["txid"], addresses))
                 #Can only peg in if the send address' pub key is known.
-                elif tx['sendingaddress'][1] != "unknown":
-                    #print("******* incrementing nonce")
-                    addrstr=tx['sending_address'][0]
-                    #print("******addrstr: {}".format(addrstr))
-                    tx['sending_address'][2]=self.deposit_address_nonce.increment(addrstr)
-                    #print("**** appending txs")
-                    new_txs_with_address.append(tx)
-            print("new_txs_with_address: {}".format(new_txs_with_address))
+                #print("******* incrementing nonce")
+                #print("******address.address: {}".format(address.address))
+                nonce=self.deposit_address_nonce.increment(address.address)
+                tx['sendingaddress']=self.Address(address=address.address, pubkey=address.pubkey, nonce=nonce)
+                #print("**** appending txs")
+                new_txs_with_address.append(tx)
+            #print("new_txs_with_address: {}".format(new_txs_with_address))
             return new_txs_with_address
         except Exception as e:
             self.logger.warning("failed get sending address ocean: {}".format(e))
