@@ -9,8 +9,6 @@ from .utils import pub_to_dgld_address, PegID, Transfer
 
 
 class OceanWallet():
-
-
     #Overrides the > and < comparison operators to sort by numeric value of blockindex
     #If block indices are equal, sorts by txid
     #Note that txid is stored as a string, so the comparison is lexicographic by ASCII value
@@ -50,6 +48,8 @@ class OceanWallet():
         self.key = conf["oceankey"]
         self.address = conf["oceanaddress"]
         self.decimals = 8
+        self.min_confirmations = 1
+        self.max_confirmations = 9999999
         #A map of deposit 'from' address to nonce
         #Nonce begins at 1 and is incremented by 1 for each new deposit transaction from the same address
         self.deposit_address_nonce = self.key_counter()
@@ -60,7 +60,8 @@ class OceanWallet():
         watch_only = bool(validate["iswatchonly"])
         have_va_prvkey = have_va_addr and not watch_only
         rescan_needed = True
-
+        self.received_txids = set()
+        
         if have_va_prvkey == False:
             try:
                 self.ocean.importprivkey(self.key,"privkey",rescan_needed)
@@ -160,7 +161,12 @@ class OceanWallet():
                 #Can only peg in if the send address' pub key is known.
                 #print("******* incrementing nonce")
                 print("******pegin from address: {}".format(address))
-                nonce=self.deposit_address_nonce.increment(address)
+                txid=tx['txid']
+                if txid in self.received_txids:
+                    nonce=self.deposit_address_nonce[address]
+                else:
+                    nonce=self.deposit_address_nonce.increment(address)
+                    self.received_txids.add(txid)
                 tx['sendingaddress']=PegID(address=address,  nonce=nonce)
                 tx['pegpubkey']=self.pubkey_map[address]
                 #print("**** appending txs")
