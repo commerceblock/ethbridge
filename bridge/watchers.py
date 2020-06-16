@@ -31,28 +31,35 @@ class OceanWatcher(DaemonThread):
             start_time = int(time())
 
             #get all addresses and amounts of all transactions received to the deposit address
-            received_txs = self.ocean.get_deposit_txs()
-            print("ocean watcher - received_txs : {}".format(len(received_txs)))
-            print("checking eth deposits...")
-            #check to see if any have not already been minted
-            new_txs = self.eth.check_deposits(received_txs)
-            print("ocean watcher - new_txs: {}".format(len(new_txs)))
-            #get address that the deposit has been sent from
+            new_txs = self.ocean.get_deposit_txs()
+#            if received_txs:
+#                print("ocean watcher - received_txs : {}".format(len(received_txs)))
+
+            #get address that the deposit has been sent from - required for checking eth deposits
             new_txs = self.ocean.get_sending_address(new_txs)
-            print("ocean watcher - new_txs with sending address: {}".format(len(new_txs)))
+
+            #check to see if any have not already been minted
+            print("checking eth deposits...")
+            new_txs = self.eth.check_deposits(new_txs)
+ #           if new_txs:
+ #               print("ocean watcher - new_txs: {}".format(len(new_txs)))
+
+
             if new_txs:
+#                print("ocean watcher - new_txs with sending address: {}".format(len(new_txs)))
                 for tx in new_txs:
                     print("tx: {}".format(tx))
-                    self.logger.info("New Ocean deposit: "+tx["txid"]+" Sending address: "+str(tx["sendingaddress"])+" Amount: "+str(tx["amount"]))
+                    self.logger.info("New Ocean deposit: "+tx["txid"]+" Sending address: "+str(tx["sendingaddress"])+" Amount: "+ str(tx["pegamount"]))
                 #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
-                mint_txs = self.eth.mint_tokens(new_txs)
-                mint_txs = None
+                #mint_txs = self.eth.mint_tokens(new_txs)
+                mint_txs = new_txs
             else:
+                print("ocean watcher - no new_txs with sending address.")
                 mint_txs=[]
 
             if mint_txs:
                 for tx in mint_txs:
-                    self.logger.info("Mint Eth tokens: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
+                    self.logger.info("Mint Eth tokens: "+tx["txid"]+" Address: "+str(tx["sendingaddress"])+" Amount: " + str(tx["pegamount"]))
                 
             elapsed_time = time() - start_time
             sleep(self.interval / 2 - (elapsed_time if elapsed_time < self.interval / 2 else 0))

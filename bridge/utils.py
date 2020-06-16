@@ -12,6 +12,11 @@ import codecs
 import bitcoin
 from eth_account import Account
 from eth_keys import KeyAPI
+import collections
+
+PegID = collections.namedtuple('PegID', 'address nonce')
+#Represents a transfer of wrapped_DGLD
+Transfer = collections.namedtuple('Transfer', 'from_ to amount transactionHash')
 
 
 class MalformedPoint(Exception):
@@ -80,7 +85,7 @@ def wif_to_eth_address(wif):
 
 def priv_bytes_to_eth_address(priv):
     pub=priv_bytes_to_pub(priv)
-    print(pub)
+#    print(pub)
     return pub_bytes_to_eth_address(pub)
 
 def wif_compressed_to_priv_bytes(wif):
@@ -92,13 +97,13 @@ def priv_bytes_to_wif(priv):
 
 def wif_to_pub_bytes(wif):
     pub=bitcoin.privtopub(wif)
-    print("wif_to_pub_bytes: pub: {}".format(pub))
+#    print("wif_to_pub_bytes: pub: {}".format(pub))
     return bitcoin.encode_pubkey(pub, 'bin')
 
 def priv_bytes_to_pub(priv):
-    print(priv)
+    #print(priv)
     wif=priv_bytes_to_wif(priv)
-    print(wif)
+    #print(wif)
     return wif_to_pub(wif)
     
 def pub_bytes_to_eth_address(var):
@@ -108,7 +113,7 @@ def pub_bytes_to_eth_address(var):
             raise InvalidKey("unrecognised public key format for key: {}".format(pub))
         pub=pub[1:]
     if len(pub) != 64:
-        print("Uncompressing pub: {}".format(pub))
+        #print("Uncompressing pub: {}".format(pub))
         pub = uncompress(pub)
     pk = KeyAPI().PublicKey(pub)
     return pk.to_checksum_address()
@@ -120,7 +125,7 @@ def point_to_pubkey_bytes(point: Point):
 
 #1: DGLD public key to ethereum address
 
-pub_compressed='02d1a8d88939fe709a9008b9f32d0408985521ad52d7133ffa4ca150fe0fa23846'
-addr=pub_bytes_to_eth_address(bytes.fromhex(pub_compressed))
-assert(addr == eth_addr)
+#pub_compressed='02d1a8d88939fe709a9008b9f32d0408985521ad52d7133ffa4ca150fe0fa23846'
+#addr=pub_bytes_to_eth_address(bytes.fromhex(pub_compressed))
+#assert(addr == eth_addr)
 

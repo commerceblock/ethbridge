@@ -5,13 +5,11 @@ from .test_framework.authproxy import JSONRPCException
 from .connectivity import getoceand
 import bisect
 import collections
-from .utils import pub_to_dgld_address
+from .utils import pub_to_dgld_address, PegID, Transfer
+
 
 class OceanWallet():
-    #An ocean address together with a pubkey and pegin nonce
-    Address = collections.namedtuple('Address', 'address pubkey nonce')
-    #Represents a transfer of wrapped_DGLD
-    Transfer = collections.namedtuple('Transfer', 'from_ to amount transactionHash')
+
 
     #Overrides the > and < comparison operators to sort by numeric value of blockindex
     #If block indices are equal, sorts by txid
@@ -51,6 +49,7 @@ class OceanWallet():
         self.ocean = getoceand(conf)
         self.key = conf["oceankey"]
         self.address = conf["oceanaddress"]
+        self.decimals = 8
         #A map of deposit 'from' address to nonce
         #Nonce begins at 1 and is incremented by 1 for each new deposit transaction from the same address
         self.deposit_address_nonce = self.key_counter()
@@ -60,7 +59,6 @@ class OceanWallet():
         have_va_addr = bool(validate["ismine"])
         watch_only = bool(validate["iswatchonly"])
         have_va_prvkey = have_va_addr and not watch_only
-
         rescan_needed = True
 
         if have_va_prvkey == False:
@@ -85,8 +83,8 @@ class OceanWallet():
         #A list of transactions sent from this wallet
         self.sent=[]
         self.update_sent()
+        self.pubkey_map={}
 
-            
     def get_deposit_txs(self):
         deposit_txs = []
         #print("get_deposit_txs")
@@ -100,11 +98,17 @@ class OceanWallet():
                     tx=raddress["txid"]
                     #print("***** get_deposit_txs tx: {}".format(tx))
                     txin=self.ocean.getrawtransaction(tx,1)
-                    txin["amount"]=self.ocean.gettransaction(tx)["amount"]
-                    print("***** get_deposit_txs amount: {}".format(txin["amount"]))
                     txin = self.sorted_tx(txin)
                     #print("***** get_deposit_txs: txin: {}".format(txin))
                     #Insert the transactions by sorted_tx order
+                    pegamount=0
+                    for out in txin['vout']:
+                        spk=out['scriptPubKey']
+                        if spk['type'] == 'pubkeyhash' and spk['addresses'][0] == self.address:
+                            pegamount = pegamount + out['value']
+
+                    txin['pegamount']=int(pegamount * 10**self.decimals)
+                    
                     bisect.insort_left(deposit_txs, txin)
             #print("***** get_deposit_txs: len(deposit_txs): {}".format(len(deposit_txs)))
             return deposit_txs
@@ -145,7 +149,8 @@ class OceanWallet():
                             in_address="unknown"
                             #Address, pubkey, pegin nonce
                         #print("**** appending address")
-                        addresses.append(self.Address(address=in_address, pubkey=in_pubkey, nonce=-1))
+                        self.pubkey_map[in_address]=in_pubkey
+                        addresses.append(in_address)
                         counter=counter+1
                 #print("**** addresses: {}".format(addresses))
                 #print("**** setting sending address")
@@ -154,9 +159,10 @@ class OceanWallet():
                     self.logger.warning("More than one address as input to txid: {}. Addresses: {}".format(tx["txid"], addresses))
                 #Can only peg in if the send address' pub key is known.
                 #print("******* incrementing nonce")
-                #print("******address.address: {}".format(address.address))
-                nonce=self.deposit_address_nonce.increment(address.address)
-                tx['sendingaddress']=self.Address(address=address.address, pubkey=address.pubkey, nonce=nonce)
+                print("******pegin from address: {}".format(address))
+                nonce=self.deposit_address_nonce.increment(address)
+                tx['sendingaddress']=PegID(address=address,  nonce=nonce)
+                tx['pegpubkey']=self.pubkey_map[address]
                 #print("**** appending txs")
                 new_txs_with_address.append(tx)
             #print("new_txs_with_address: {}".format(new_txs_with_address))
