@@ -27,9 +27,9 @@ class EthWalletError(Exception):
         
 class EthWallet():
     #An ethereum address together with a pegin nonce
-#    Address = collections.namedtuple('Address', 'address nonce')
+    #Address = collections.namedtuple('Address', 'address nonce')
     #Represents a transfer of wrapped_DGLD
-#    Transfer = collections.namedtuple('Transfer', 'from_ to amount transactionHash')
+    #Transfer = collections.namedtuple('Transfer', 'from_ to amount transactionHash')
     
     def __init__(self, conf):
         self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -76,7 +76,7 @@ class EthWallet():
     #Get a list of previously minted pegin transactions
     def init_minted(self):
         print("init minted...")
-        self.minted=set()
+        self.minted={}
         entries=self.mint_filter.get_all_entries()
         pegin_entries=self.pegin_filter.get_all_entries()
         if entries:
@@ -107,11 +107,8 @@ class EthWallet():
                 self.logger.warning("failed get pegin nonce for transaction: {}".format(transactionHash))
                 continue
             print("****** mint event transactionHash: {}".format(transactionHash))
-            self.minted.add(Transfer(to=PegID(address=event['args']['to'],
-                                                   nonce=nonce_dict[transactionHash]),
-                                     amount=event['args']['value'],
-                                     from_=None,
-                                     transactionHash=transactionHash))
+            self.minted[PegID(address=event['args']['to'],
+                                        nonce=nonce_dict[transactionHash])] = transactionHash
     def get_burn_txs(self):
         pegout_txs = []
         #get all transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
@@ -127,17 +124,20 @@ class EthWallet():
 
     def is_already_minted(self, tx: Transfer):
         print("***is already minted:")
-        for item in self.minted:
-          print("***** comparing: {}".format(tx))
-          print("***** with *****************")
-          print("{}".format(item))
-          ocean_eth_address=pub_bytes_to_eth_address(bytes.fromhex(tx['pegpubkey']))
-          eth_eth_address=item[1][0]
-          eth_nonce=item[1][1]         
-          ocean_nonce=tx['sendingaddress'][1]
-          if(ocean_eth_address == eth_eth_address and eth_nonce == ocean_nonce):
-              print("*** True")
-              return True
+#        for item in self.minted:
+#        print("***** comparing: {}".format(tx))
+ #       print("***** with *****************")
+#        print("{}".format(item))
+        ocean_eth_address=pub_bytes_to_eth_address(bytes.fromhex(tx['pegpubkey']))
+#        eth_eth_address=item[1][0]
+#        eth_nonce=item[1][1]         
+        ocean_nonce=tx['sendingaddress'][1]
+        pegid=PegID(address=ocean_eth_address, nonce=ocean_nonce)
+        print("is {} in {} :?".format(pegid, self.minted))
+        if pegid in self.minted:
+            #          if(ocean_eth_address == eth_eth_address and eth_nonce == ocean_nonce):
+            print("*** True")
+            return True
         print("*** False")
         return False
                                             
