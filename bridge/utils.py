@@ -52,7 +52,7 @@ def uncompress(string: bytes, curve=SECP256k1) -> Point:
     if not ecdsa.point_is_valid(curve.generator, x, y):
         raise MalformedPoint("Point does not lie on curve")
     return point_to_pubkey_bytes(Point(curve.curve, x, y, order))
-    
+
 def pub_to_dgld_address(pubkey):
     return bitcoin.pubkey_to_address(pubkey, 38)
 

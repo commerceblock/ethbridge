@@ -10,7 +10,8 @@ import json
 from time import sleep, time
 import ssl
 import pathlib
-from .utils import PegID, Transfer, pub_bytes_to_eth_address
+from .utils import PegID, Transfer, pub_bytes_to_eth_address, pub_to_dgld_address, compress
+
 
 class EthWalletError(Exception):
     def __init__(self, *args):
@@ -45,17 +46,15 @@ class EthWallet():
         self.account=Account.from_key(conf['ethkey'])
         self.w3.defaultAccount=self.account
         self.key=conf['ethkey']
-        print("ethaddress: {} {}".format(self.account.address, conf['ethaddress']))
         assert(self.account.address == conf['ethaddress'])
         self.contract=self.w3.eth.contract(address=conf['contract'],abi=abi)
         #Get the pegout address
         self.pegout_address=self.contract.functions.pegoutAddress().call()
-        print('pegout address: {}'.format(self.pegout_address))
 
         #A filter for the ethereum log for pegout events
         filter_builder=self.contract.events.Transfer.build_filter()
         filter_builder.fromBlock=0
-        filter_builder.args['to'].match_any(self.pegout_address)
+        filter_builder.args.to.match_any(self.pegout_address)
         self.pegout_filter=filter_builder.deploy(self.w3)
 
         #Mint events are transfers from the zero address
@@ -71,81 +70,68 @@ class EthWallet():
         self.txn_gas_limit=1000000
         #Subscribe to events
         self.init_minted()
-        print("minted: {}".format(self.minted))
 
+        
     #Get a list of previously minted pegin transactions
     def init_minted(self):
-        print("init minted...")
         self.minted={}
         entries=self.mint_filter.get_all_entries()
         pegin_entries=self.pegin_filter.get_all_entries()
         if entries:
-            print("Found {} old entries".format(len(entries)))                                            
             self.update_minted_from_events(entries, pegin_entries)
-        print("...init minted finished")                                            
 
     def update_minted(self):
-        print("update minted...")
         entries=self.mint_filter.get_new_entries()
         pegin_entries=self.pegin_filter.get_new_entries()
         if entries:
-            print("Found {} new entries".format(len(entries)))                                            
             self.update_minted_from_events(entries, pegin_entries)
-        print("...update minted finished")
         
     def update_minted_from_events(self, events, pegin_events):
         nonce_dict={}
-        print("pegin_events: {}".format(pegin_events))
         for event in pegin_events:
             nonce_dict[event['transactionHash'].hex()]=event['args']['id']
 
-        print("nonce_dict: {}".format(nonce_dict))
         for event in events:
-            print("****** mint event: {}".format(event))
             transactionHash=event['transactionHash'].hex()
             if not transactionHash in nonce_dict:
                 self.logger.warning("failed get pegin nonce for transaction: {}".format(transactionHash))
                 continue
-            print("****** mint event transactionHash: {}".format(transactionHash))
             self.minted[PegID(address=event['args']['to'],
                                         nonce=nonce_dict[transactionHash])] = transactionHash
+
+    def get_ocean_destination_from_burn_event(self, event):
+        tx = self.w3.eth.getTransaction(event['transactionHash'])
+        return pub_to_dgld_address(compress(int.from_bytes(tx['publicKey'][:32], byteorder='big'), int.from_bytes(tx['publicKey'][32:], byteorder='big')))
+            
+    #get all transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
     def get_burn_txs(self):
-        pegout_txs = []
-        #get all transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
+        pegout_txs=[]
         try:
-            for event in  self.pegout_filter.get_new_entries():
-                pegout_txs.add(Transfer(from_=PegID(address=event['from']),
-                                            amount=event['amount'],
-                                            transactionHash=event['transactionHash']))
+            events = self.pegout_filter.get_all_entries()
+            for event in events:
+                #Set the 'to' address to the ocean dgld address
+                to=self.get_ocean_destination_from_burn_event(event)
+                pegout_txs.append(Transfer(from_=event['args']['from'],
+                                           to=to,
+                                           amount=event['args']['value'],
+                                           transactionHash=event['transactionHash'].hex()))
             return pegout_txs
         except Exception as e:
             self.logger.warning("failed get eth burn transactions: {}".format(e))
             return None
-
+        
     def is_already_minted(self, tx: Transfer):
-        print("***is already minted:")
-#        for item in self.minted:
-#        print("***** comparing: {}".format(tx))
- #       print("***** with *****************")
-#        print("{}".format(item))
         ocean_eth_address=pub_bytes_to_eth_address(bytes.fromhex(tx['pegpubkey']))
-#        eth_eth_address=item[1][0]
-#        eth_nonce=item[1][1]         
         ocean_nonce=tx['sendingaddress'][1]
         pegid=PegID(address=ocean_eth_address, nonce=ocean_nonce)
-        print("is {} in {} :?".format(pegid, self.minted))
         if pegid in self.minted:
-            #          if(ocean_eth_address == eth_eth_address and eth_nonce == ocean_nonce):
-            print("*** True")
             return True
-        print("*** False")
         return False
                                             
     def check_deposits(self, new_txs: [Transfer]):
         if not new_txs:
             return
         #filter the transactions to previously unminted ones
-        print("eth.check_deposits(): updating minted, time = {}".format(time()))
         self.update_minted()
         filtered_list=[]
         for tx in new_txs:
@@ -161,14 +147,11 @@ class EthWallet():
             for payment in payment_list:
                 txnonce=self.w3.eth.getTransactionCount(Web3.toChecksumAddress(self.account.address))
                 #mint the required tokens
-                print("*** payment: {}".format(payment))
                 to = pub_bytes_to_eth_address(bytes.fromhex(payment['pegpubkey']))
                 nonce = payment['sendingaddress'].nonce
                 amount=payment['pegamount']                     
-                print("Pegin function to: {}, amount: {}, nonce: {}".format(to, amount, nonce))
                 pegin_function=self.contract.functions.pegin(to, amount, nonce)
                 gasPrice=self.w3.eth.gasPrice
-                print("*************** Getting account balance...")
 
 
 #                accountBalanceTx=self.contract.functions.balanceOfWeb3.toChecksumAddress(self.account.address)).buildTransaction({
@@ -185,33 +168,21 @@ class EthWallet():
 #                raw_balance = self.contract.call().balanceOf(self.account.address)
                 raw_balance = self.contract.functions.balanceOf(self.account.address).call()
                 balance = raw_balance // 100000000
-                print("raw account balance: {}".format(raw_balance))
-                print("account balance: {}".format(balance))
-                      
-                print("gasPrice: {}".format(gasPrice))
-                print("Estimating gas...")
-
                 gas_estimate=100000
                 #pegin_function.estimateGas()
 
-                print("gas_estimate: {}".format(gas_estimate))
                 gas_cost=gas_estimate*gasPrice
-                print("...finished estimating gas.")
-                print("gas_estimate: {}".format(gas_estimate))
-                print("txnonce: {}".format(txnonce))
 #                if gas_estimate > self.txn_gas_limit:
 #                    raise Exception('gas limit exceeded: ' + str(gas_estimate) + ' > ' + str(self.txn_gas_limit))
-                print("txnonce: {}".format(txnonce))
                 txn = pegin_function.buildTransaction({'nonce': txnonce,
                                                        'from': self.account.address,
                                                        'gas': gas_estimate,
                                                        'gasPrice': gasPrice
                 })
                 signed_txn = self.account.sign_transaction(txn)
-                print(signed_txn)
                 txn_hash=self.w3.eth.sendRawTransaction(signed_txn.rawTransaction)
                 txn_receipt = self.w3.eth.waitForTransactionReceipt(txn_hash)
-                minted_txs.add(txn_hash, txn_receipt)
+                minted_txs.append(txn_hash, txn_receipt)
             return minted_txs
         except Exception as e:
             self.logger.warning("failed ocean payment tx generation: {}".format(e))

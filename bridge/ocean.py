@@ -55,12 +55,12 @@ class OceanWallet():
         self.deposit_address_nonce = self.key_counter()
         #Check if the node wallet already has the deposit key before importing
         validate = self.ocean.validateaddress(self.address)
-        print(validate)
         have_va_addr = bool(validate["ismine"])
         watch_only = bool(validate["iswatchonly"])
         have_va_prvkey = have_va_addr and not watch_only
         rescan_needed = True
         self.received_txids = set()
+        self.pending_pegouts = set()
         
         if have_va_prvkey == False:
             try:
@@ -80,7 +80,7 @@ class OceanWallet():
             validate = ocean.validateaddress(self.addresses)
 
         #The number of transactions associated with the wallet
-        self.tx_count=0
+        self.tx_skip=0
         #A list of transactions sent from this wallet
         self.sent=[]
         self.update_sent()
@@ -88,19 +88,13 @@ class OceanWallet():
 
     def get_deposit_txs(self):
         deposit_txs = []
-        #print("get_deposit_txs")
         try:
             unspent = self.ocean.listunspent()
             for raddress in unspent:
                 if raddress["address"] == self.address:
-                    #print("**** raddress: {}".format(raddress))
-                    #print("**** address: {}".format(raddress["address"]))
-                    #print("**** self.address: {}".format(self.address))
                     tx=raddress["txid"]
-                    #print("***** get_deposit_txs tx: {}".format(tx))
                     txin=self.ocean.getrawtransaction(tx,1)
                     txin = self.sorted_tx(txin)
-                    #print("***** get_deposit_txs: txin: {}".format(txin))
                     #Insert the transactions by sorted_tx order
                     pegamount=0
                     for out in txin['vout']:
@@ -111,14 +105,12 @@ class OceanWallet():
                     txin['pegamount']=int(pegamount * 10**self.decimals)
                     
                     bisect.insort_left(deposit_txs, txin)
-            #print("***** get_deposit_txs: len(deposit_txs): {}".format(len(deposit_txs)))
             return deposit_txs
         except Exception as e:
             self.logger.warning("failed to get ocean deposit transactions: {}".format(str(e)))
             return None
 
     def get_sending_address(self, new_txs):
-        #print("******************* get sending address *********************")
         new_txs_with_address = []
         #Only p2pkh addresses can be wrapped
         new_unbridgable_txs = []
@@ -128,39 +120,25 @@ class OceanWallet():
         counter=0
         try:
             for tx in new_txs:
-                #print("get_sending_address: tx: {}".format(tx))
                 addresses = []
-                #print("len(tx[\"vin\"]): {}".format(len(tx["vin"])))
                 for inputs in tx["vin"]:
-                    #print("************** get_sending: inputs: {}".format(inputs))
                     txin = self.ocean.getrawtransaction(inputs["txid"],1)
-                    #print("**** txin")
-                    #print("len(txin[\"vout\"]): {}".format(len(txin["vout"])))
                     for vout in txin["vout"]:
                         out=dict(txin["vout"][inputs["vout"]])
-                        #print("***** out: {}".format(out))
                         if out['scriptPubKey']['type'] == 'pubkeyhash':
-                            #print("****inputs: {}".format(inputs))
                             in_pubkey=inputs["scriptSig"]["hex"][-66:]
-                            #print("in_pubkey: {}".format(in_pubkey))
                             in_address=pub_to_dgld_address(bytes.fromhex(in_pubkey))
-                            #print("in_address: {}".format(in_address))
                         else:
                             in_pubkey="unknown"
                             in_address="unknown"
                             #Address, pubkey, pegin nonce
-                        #print("**** appending address")
                         self.pubkey_map[in_address]=in_pubkey
                         addresses.append(in_address)
                         counter=counter+1
-                #print("**** addresses: {}".format(addresses))
-                #print("**** setting sending address")
                 address=addresses[0]
                 if len(addresses) != 1:
                     self.logger.warning("More than one address as input to txid: {}. Addresses: {}".format(tx["txid"], addresses))
                 #Can only peg in if the send address' pub key is known.
-                #print("******* incrementing nonce")
-                print("******pegin from address: {}".format(address))
                 txid=tx['txid']
                 if txid in self.received_txids:
                     nonce=self.deposit_address_nonce[address]
@@ -169,9 +147,7 @@ class OceanWallet():
                     self.received_txids.add(txid)
                 tx['sendingaddress']=PegID(address=address,  nonce=nonce)
                 tx['pegpubkey']=self.pubkey_map[address]
-                #print("**** appending txs")
                 new_txs_with_address.append(tx)
-            #print("new_txs_with_address: {}".format(new_txs_with_address))
             return new_txs_with_address
         except Exception as e:
             self.logger.warning("failed get sending address ocean: {}".format(e))
@@ -181,38 +157,66 @@ class OceanWallet():
         try:
             #Get transactions 100 at a time
             while True:
-                transactions = self.ocean.listtransactions('*', 100, self.tx_count, False)
+                transactions = self.ocean.listtransactions('*', 100, self.tx_skip, False)
                 if len(transactions) == 0:
                     break
                 for tx in transactions:
-                    if tx['address'] == self.address and tx['category'] == 'send':
-                        bisection.insort_left(self.sent, self.sorted_tx(tx))
-                self.tx_count+=len(transactions)
+                    if tx['category'] == 'send' and 'address' in tx and tx['address'] == self.address:
+                        txid=tx['txid']
+                        rawtx=self.ocean.getrawtransaction(txid, 1)
+                        
+                        bisect.insort_left(self.sent, self.sorted_tx(tx))
+                self.tx_skip+=len(transactions)
         except Exception as e:
             self.logger.warning("failed to get ocean deposit transactions: {}".format(e))
             return None        
+
+    def get_recipient_address(self, rawtx):
+        for out in rawtx['vout']:
+            if addresses in out:
+                return out['addresses'][0]
+        
         
     def is_already_sent(self, tx: Transfer):
-        for item in self.sent:
-            if(tx['to']['nonce'] == item['to']['nonce']):
-                return True
+        if tx.transactionHash in self.sent:
+            self.pending_pegouts.remove(tx.transactionHash)
+            return True
         return False
         
-    def check_deposits(self, conf, new_txs: [Transfer]):
+    def check_deposits(self, new_txs: [Transfer]):
         #check that the new transactions recieved have not been previously paid out from the Ocean deposit wallet
         self.update_sent()
         filtered_list=list(set(filter(lambda x: not self.is_already_sent(x), new_txs)))
         return filtered_list
 
+    def format_hex_str(self, val):
+        if val[:2] == "0x":
+            return val[2:]
+        else:
+            return val
+    
     def send_tokens(self, payment_list):
         non_whitelisted = []
         try:
             for payment in payment_list:
-                is_whitelisted = self.querywhitelist(payment["address"])
+                is_whitelisted = self.ocean.querywhitelist(payment.to)
+                txhash=payment.transactionHash
                 if is_whitelisted:
-                    txid = self.ocean.sendanytoaddress(payment["address"],payment["amount"])
+                    #include metadata in the tx.
+                    if txhash in self.pending_pegouts:
+                        self.logger.warning("Pegout ID: {} already pending".format(txhash))
+                        continue
+                    amount=payment.amount
+                    amount=amount/(10 ** self.decimals)
+                    txhash_fmt=self.format_hex_str(txhash)
+                    txid=None
+                    txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt)
+#                    txid = self.ocean.createanytoaddress(payment.to, amount, True, False, 1, False, txhash_fmt)[0]
+                    
+                    self.pending_pegouts.add(txhash)
+                    self.logger.info("Ocean payment: sending tokens to ocean address: {}, amount: {}, nonce: {}, ocean txid: {}".format(payment.to, amount, txhash, txid))
                 else:
-                    self.logger.warning("Ocean payment: "+payment["address"]+" from Eth TxID "+payment["txid"]+" not whitelisted")
+                    self.logger.warning("Ocean payment: "+payment.to+" from Eth TxID "+txhash+" not whitelisted")
                     non_whitelisted.append(payment)
         except Exception as e:
             self.logger.warning("failed ocean payment tx generation: {}".format(e))
