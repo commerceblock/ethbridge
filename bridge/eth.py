@@ -70,18 +70,18 @@ class EthWallet():
         self.txn_gas_limit=1000000
         #Subscribe to events
         self.init_minted()
-
+        self.init_pegout_txs()
         
-    #Get a list of previously minted pegin transactions
+
     def init_minted(self):
         self.minted={}
-        entries=self.mint_filter.get_all_entries()
-        pegin_entries=self.pegin_filter.get_all_entries()
-        if entries:
-            self.update_minted_from_events(entries, pegin_entries)
+        self.update_minted(True)
 
-    def update_minted(self):
-        entries=self.mint_filter.get_new_entries()
+    def update_minted(self, get_all_entries=False):
+        if get_all_entries:
+            entries=self.mint_filter.get_all_entries()
+        else:
+            entries=self.mint_filter.get_new_entries()
         pegin_entries=self.pegin_filter.get_new_entries()
         if entries:
             self.update_minted_from_events(entries, pegin_entries)
@@ -102,23 +102,35 @@ class EthWallet():
     def get_ocean_destination_from_burn_event(self, event):
         tx = self.w3.eth.getTransaction(event['transactionHash'])
         return pub_to_dgld_address(compress(int.from_bytes(tx['publicKey'][:32], byteorder='big'), int.from_bytes(tx['publicKey'][32:], byteorder='big')))
-            
-    #get all transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
-    def get_burn_txs(self):
-        pegout_txs=[]
+
+    def init_pegout_txs(self):
+        self.pegout_txs=[]
+        self.update_pegout_txs(True)
+
+    def update_pegout_txs(self, get_all_entries=False):
         try:
-            events = self.pegout_filter.get_all_entries()
+            if get_all_entries:
+                events = self.pegout_filter.get_all_entries()
+            else:
+                events = self.pegout_filter.get_new_entries()
             for event in events:
                 #Set the 'to' address to the ocean dgld address
                 to=self.get_ocean_destination_from_burn_event(event)
-                pegout_txs.append(Transfer(from_=event['args']['from'],
-                                           to=to,
-                                           amount=event['args']['value'],
-                                           transactionHash=event['transactionHash'].hex()))
+                self.pegout_txs.append(Transfer(from_=event['args']['from'],
+                                                to=to,
+                                                amount=event['args']['value'],
+                                                transactionHash=event['transactionHash'].hex()))
             return pegout_txs
         except Exception as e:
             self.logger.warning("failed get eth burn transactions: {}".format(e))
             return None
+        
+    #get all transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
+    def get_burn_txs(self):
+        self.update_pegout_txs()
+        pegout_txs=self.pegout_txs
+        self.pegout_txs=[]
+        return pegout_txs
         
     def is_already_minted(self, tx: Transfer):
         ocean_eth_address=pub_bytes_to_eth_address(bytes.fromhex(tx['pegpubkey']))
