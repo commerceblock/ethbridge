@@ -49,7 +49,7 @@ class OceanWallet():
         self.address = conf["oceanaddress"]
         self.decimals = 8
         self.min_confirmations = 1
-        self.max_confirmations = 9999999
+        self.max_confirmations = 100000
         #A map of deposit 'from' address to nonce
         #Nonce begins at 1 and is incremented by 1 for each new deposit transaction from the same address
         self.deposit_address_nonce = self.key_counter()
@@ -89,22 +89,25 @@ class OceanWallet():
     def get_deposit_txs(self):
         deposit_txs = []
         try:
-            unspent = self.ocean.listunspent()
-            for raddress in unspent:
+            received = self.ocean.listreceivedbyaddress(self.min_confirmations, True, True)
+            for raddress in received:
                 if raddress["address"] == self.address:
-                    tx=raddress["txid"]
-                    txin=self.ocean.getrawtransaction(tx,1)
-                    txin = self.sorted_tx(txin)
-                    #Insert the transactions by sorted_tx order
-                    pegamount=0
-                    for out in txin['vout']:
-                        spk=out['scriptPubKey']
-                        if spk['type'] == 'pubkeyhash' and spk['addresses'][0] == self.address:
-                            pegamount = pegamount + out['value']
+                    for tx in raddress["txids"]:
+                        txin=self.ocean.getrawtransaction(tx,1)
+                        #Ignore older deposit txs - assume they have already been pegged
+                        if txin["confirmations"] > self.max_confirmations:
+                            continue
+                        txin = self.sorted_tx(txin)
+                        #Insert the transactions by sorted_tx order
+                        pegamount=0
+                        for out in txin['vout']:
+                            spk=out['scriptPubKey']
+                            if spk['type'] == 'pubkeyhash' and spk['addresses'][0] == self.address:
+                                pegamount = pegamount + out['value']
 
-                    txin['pegamount']=int(pegamount * 10**self.decimals)
+                        txin['pegamount']=int(pegamount * 10**self.decimals)
                     
-                    bisect.insort_left(deposit_txs, txin)
+                        bisect.insort_left(deposit_txs, txin)
             return deposit_txs
         except Exception as e:
             self.logger.warning("failed to get ocean deposit transactions: {}".format(str(e)))
@@ -120,7 +123,7 @@ class OceanWallet():
         counter=0
         try:
             for tx in new_txs:
-                addresses = []
+                addresses = set()
                 for inputs in tx["vin"]:
                     txin = self.ocean.getrawtransaction(inputs["txid"],1)
                     for vout in txin["vout"]:
@@ -133,9 +136,9 @@ class OceanWallet():
                             in_address="unknown"
                             #Address, pubkey, pegin nonce
                         self.pubkey_map[in_address]=in_pubkey
-                        addresses.append(in_address)
+                        addresses.add(in_address)
                         counter=counter+1
-                address=addresses[0]
+                address=list(addresses)[0]
                 if len(addresses) != 1:
                     self.logger.warning("More than one address as input to txid: {}. Addresses: {}".format(tx["txid"], addresses))
                 #Can only peg in if the send address' pub key is known.

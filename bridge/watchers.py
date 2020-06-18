@@ -72,7 +72,7 @@ class Watcher(DaemonThread):
         new_txs = self.ocean.check_deposits(received_txs)
         #new_txs = self.ocean.get_sending_address(new_txs)
         for tx in new_txs:
-            self.logger.info("New Ocean deposit: " + tx.transactionHash +" Sending address: "+tx.to +" Amount: "+str(tx.amount))
+            self.logger.info("New Eth deposit: " + tx.transactionHash + " Eth sender address: " + tx.from_ + " Ocean recipient address: "+tx.to +" Amount: "+str(tx.amount))
         #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
         not_whitelisted = self.ocean.send_tokens(new_txs)
             

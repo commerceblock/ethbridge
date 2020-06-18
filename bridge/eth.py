@@ -80,9 +80,10 @@ class EthWallet():
     def update_minted(self, get_all_entries=False):
         if get_all_entries:
             entries=self.mint_filter.get_all_entries()
+            pegin_entries=self.pegin_filter.get_all_entries()
         else:
             entries=self.mint_filter.get_new_entries()
-        pegin_entries=self.pegin_filter.get_new_entries()
+            pegin_entries=self.pegin_filter.get_new_entries()
         if entries:
             self.update_minted_from_events(entries, pegin_entries)
         
@@ -120,7 +121,6 @@ class EthWallet():
                                                 to=to,
                                                 amount=event['args']['value'],
                                                 transactionHash=event['transactionHash'].hex()))
-            return pegout_txs
         except Exception as e:
             self.logger.warning("failed get eth burn transactions: {}".format(e))
             return None
