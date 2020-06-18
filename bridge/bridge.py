@@ -9,8 +9,7 @@ import time
 import argparse
 from decimal import *
 from pdb import set_trace
-from .watchers import OceanWatcher
-from .watchers import EthWatcher
+from .watchers import Watcher
 from .hsm import HsmPkcs11
 from .connectivity import getoceand, loadConfig
 
@@ -62,19 +61,13 @@ def main():
     if args.hsm:
         signer = HsmPkcs11(os.environ['KEY_LABEL'])
 
-    ocean_watch = OceanWatcher(conf, signer)
-    ocean_watch.start()
-
-    eth_watch = EthWatcher(conf, signer)
-    eth_watch.start()
+    watch = Watcher(conf, signer)
+    watch.start()
 
     try:
         while 1:
-            if ocean_watch.stopped():
-                ocean_watch.join()
-                raise Exception("Node thread has stopped")
-            if eth_watch.stopped():
-                eth_watch.join()
+            if watch.stopped():
+                watch.join()
                 raise Exception("Node thread has stopped")
             time.sleep(0.01)
     except KeyboardInterrupt:
