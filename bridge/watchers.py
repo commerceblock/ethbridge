@@ -47,8 +47,8 @@ class Watcher(DaemonThread):
             mint_txs=[]
 
         if mint_txs:
-            for tx in mint_txs:
-                self.logger.info("Mint Eth tokens: "+tx["txid"]+" Address: "+str(tx["sendingaddress"])+" Amount: " + str(tx["pegamount"]))
+            for tx, receipt in mint_txs:
+                self.logger.info("Mint Eth tokens: "+tx["txid"]+" Address: "+str(tx["sendingaddress"])+" Amount: " + str(tx["pegamount"])  + " Receipt: " + str(receipt))
                 
 
     def rpc_retry(self, rpc_func, *args):

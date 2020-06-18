@@ -31,7 +31,11 @@ def parse_args():
     parser.add_argument('--oceanaddress', type=str, help="Ocean bridge deposit address")
     parser.add_argument('--hsm', default=False, type=bool, help="Specify if an HSM will be used for signing signing transactions")
     parser.add_argument('--whitelist', default=0, type=int, help="Whitelist policy: 0. None. 1. Save tx if not whitelisted. 2. Return Eth tokens to address if not whitelisted.")
-    parser.add_argument('--interval', default=60, type=int, help="The frequency at which the daemon checks for new transactions.")
+    parser.add_argument('--interval', default=60, type=int, help="The time interval in seconds between checks for new transactions.")
+    parser.add_argument('--minethconfirmations', default=6, type=int, help="The minimum number of confirmations required for deposit transactions on the ethereum blockchain.")
+    parser.add_argument('--mindgldconfirmations', default=60, type=int, help="The minimum number of confirmations required for deposit transactions on the DGLD blockchain.")
+    parser.add_argument('--maxdgldconfirmations', default=100000, type=int, help="Deposit transactions on the DGLD blockchain will be ignored after this number of confirmations.")
+    parser.add_argument('--decimals', default=8, type=int, help="The number of decimal places of the token unit.")
     return parser.parse_args()
 
 def main():
@@ -43,6 +47,10 @@ def main():
     )
 
     conf = {}
+    conf["minethconfirmations"] = args.minethconfirmations
+    conf["mindgldconfirmations"] = args.mindgldconfirmations
+    conf["maxdgldconfirmations"] = args.maxdgldconfirmations
+    conf["decimals"] = args.decimals
     conf["interval"] = args.interval
     conf["rpcuser"] = args.rpcuser
     conf["rpcpassword"] = args.rpcpassword

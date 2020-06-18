@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3A
 from web3 import Web3, HTTPProvider, WebsocketProvider
 import logging
 import sys
@@ -50,40 +50,51 @@ class EthWallet():
         self.contract=self.w3.eth.contract(address=conf['contract'],abi=abi)
         #Get the pegout address
         self.pegout_address=self.contract.functions.pegoutAddress().call()
-
-        #A filter for the ethereum log for pegout events
-        filter_builder=self.contract.events.Transfer.build_filter()
-        filter_builder.fromBlock=0
-        filter_builder.args.to.match_any(self.pegout_address)
-        self.pegout_filter=filter_builder.deploy(self.w3)
-
-        #Mint events are transfers from the zero address
-        filter_builder=self.contract.events.Transfer.build_filter()
-        filter_builder.fromBlock=0
-        filter_builder.args['from'].match_any("0x0000000000000000000000000000000000000000")
-        self.mint_filter = filter_builder.deploy(self.w3)
-
-        filter_builder=self.contract.events.Pegin.build_filter()
-        filter_builder.fromBlock=0
-        self.pegin_filter=filter_builder.deploy(self.w3)
-
-        self.txn_gas_limit=1000000
+        self.minconfirmations=conf['minethconfirmations']
+        #The block up to which pegouts have been processed
+        self.synced_to_block=0       
+        self.pegin_gas_estimate=100000
         #Subscribe to events
         self.init_minted()
         self.init_pegout_txs()
-        
+
+    #Get the blocknumber that satisfies the minimum number of confirmations
+    def get_max_blocknumber(self):
+        return self.w3.eth.blockNumber-self.minconfirmations
+
+    #A new filter must be redeployed each time they are used as persistency is not guaranteed
+    def get_mint_filter(self, fromBlock=None):
+        #Mint events are transfers from the zero address
+        filter_builder=self.contract.events.Transfer.build_filter()
+        filter_builder.fromBlock=fromBlock
+        filter_builder.args['from'].match_any("0x0000000000000000000000000000000000000000")
+        return filter_builder.deploy(self.w3)
+
+    def get_pegin_filter(self, fromBlock=None):
+        #Pegin events
+        filter_builder=self.contract.events.Pegin.build_filter()
+        filter_builder.fromBlock=fromBlock
+        return filter_builder.deploy(self.w3)
+
+    def get_pegout_filter(self, fromBlock=None):
+        #A filter for the ethereum log for pegout events
+        filter_builder=self.contract.events.Transfer.build_filter()
+        filter_builder.fromBlock=fromBlock
+        filter_builder.args.to.match_any(self.pegout_address)
+        return filter_builder.deploy(self.w3)
 
     def init_minted(self):
         self.minted={}
-        self.update_minted(True)
+        self.update_minted(0)
 
-    def update_minted(self, get_all_entries=False):
-        if get_all_entries:
-            entries=self.mint_filter.get_all_entries()
-            pegin_entries=self.pegin_filter.get_all_entries()
-        else:
-            entries=self.mint_filter.get_new_entries()
-            pegin_entries=self.pegin_filter.get_new_entries()
+    def update_minted(self, fromBlock=None):
+        if fromBlock == None:
+            fromBlock=self.synced_to_block + 1
+        mint_filter=self.get_mint_filter(fromBlock)
+        pegin_filter=self.get_pegin_filter(fromBlock)
+        entries=mint_filter.get_all_entries()
+        pegin_entries=pegin_filter.get_all_entries()
+
         if entries:
             self.update_minted_from_events(entries, pegin_entries)
         
@@ -106,16 +117,23 @@ class EthWallet():
 
     def init_pegout_txs(self):
         self.pegout_txs=[]
-        self.update_pegout_txs(True)
+        self.update_pegout_txs(0)
 
-    def update_pegout_txs(self, get_all_entries=False):
+    def update_pegout_txs(self, fromBlock=None):
+        if fromBlock == None:
+            fromBlock=self.synced_to_block + 1
         try:
-            if get_all_entries:
-                events = self.pegout_filter.get_all_entries()
-            else:
-                events = self.pegout_filter.get_new_entries()
+            pegout_filter=self.get_pegout_filter(fromBlock)
+            events = pegout_filter.get_all_entries()
+            synced_to_block=self.synced_to_block
+            maxblock = self.get_max_blocknumber()
+            
             for event in events:
                 #Set the 'to' address to the ocean dgld address
+                #This enforces the minimum number of confirmations
+                if event['blockNumber'] > maxblock:
+                    continue
+                synced_to_block = max([event['blockNumber'],synced_to_block])
                 to=self.get_ocean_destination_from_burn_event(event)
                 self.pegout_txs.append(Transfer(from_=event['args']['from'],
                                                 to=to,
@@ -124,8 +142,10 @@ class EthWallet():
         except Exception as e:
             self.logger.warning("failed get eth burn transactions: {}".format(e))
             return None
+
+        self.synced_to_block=synced_to_block
         
-    #get all transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
+    #get the latest transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
     def get_burn_txs(self):
         self.update_pegout_txs()
         pegout_txs=self.pegout_txs
@@ -180,8 +200,8 @@ class EthWallet():
 #                raw_balance = self.contract.call().balanceOf(self.account.address)
                 raw_balance = self.contract.functions.balanceOf(self.account.address).call()
                 balance = raw_balance // 100000000
-                gas_estimate=100000
-                #pegin_function.estimateGas()
+                gas_estimate=self.pegin_gas_estimate
+#                gas_estimate=pegin_function.estimateGas()
 
                 gas_cost=gas_estimate*gasPrice
 #                if gas_estimate > self.txn_gas_limit:
@@ -194,7 +214,7 @@ class EthWallet():
                 signed_txn = self.account.sign_transaction(txn)
                 txn_hash=self.w3.eth.sendRawTransaction(signed_txn.rawTransaction)
                 txn_receipt = self.w3.eth.waitForTransactionReceipt(txn_hash)
-                minted_txs.append(txn_hash, txn_receipt)
+                minted_txs.append((payment, txn_receipt))
             return minted_txs
         except Exception as e:
             self.logger.warning("failed ocean payment tx generation: {}".format(e))

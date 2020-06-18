@@ -47,9 +47,9 @@ class OceanWallet():
         self.ocean = getoceand(conf)
         self.key = conf["oceankey"]
         self.address = conf["oceanaddress"]
-        self.decimals = 8
-        self.min_confirmations = 1
-        self.max_confirmations = 100000
+        self.decimals = conf["decimals"]
+        self.min_confirmations = conf["mindgldconfirmations"]
+        self.max_confirmations = conf["maxdgldconfirmations"]
         #A map of deposit 'from' address to nonce
         #Nonce begins at 1 and is incremented by 1 for each new deposit transaction from the same address
         self.deposit_address_nonce = self.key_counter()
@@ -82,7 +82,7 @@ class OceanWallet():
         #The number of transactions associated with the wallet
         self.tx_skip=0
         #A list of transactions sent from this wallet
-        self.sent=[]
+        self.sent=set()
         self.update_sent()
         self.pubkey_map={}
 
@@ -124,6 +124,7 @@ class OceanWallet():
         try:
             for tx in new_txs:
                 addresses = set()
+                metadata = []
                 for inputs in tx["vin"]:
                     txin = self.ocean.getrawtransaction(inputs["txid"],1)
                     for vout in txin["vout"]:
@@ -164,14 +165,20 @@ class OceanWallet():
                 if len(transactions) == 0:
                     break
                 for tx in transactions:
-                    if tx['category'] == 'send' and 'address' in tx and tx['address'] == self.address:
+                    if tx['category'] == 'send':
                         txid=tx['txid']
-                        rawtx=self.ocean.getrawtransaction(txid, 1)
-                        
-                        bisect.insort_left(self.sent, self.sorted_tx(tx))
+                        #These are wallet transactions so we use gettransaction followed by decoderawtransaction
+                        rawtx=self.ocean.gettransaction(txid)['hex']
+                        decoded=self.ocean.decoderawtransaction(rawtx)
+                        for out in decoded['vout']:
+                            if out['scriptPubKey']['type'] == 'nulldata' and \
+                               out['scriptPubKey']['hex'][:4] == '6a20' :
+                                data='0x'+out['scriptPubKey']['hex'][4:]
+                                if data not in self.sent:
+                                    self.sent.add(data)
                 self.tx_skip+=len(transactions)
         except Exception as e:
-            self.logger.warning("failed to get ocean deposit transactions: {}".format(e))
+            self.logger.warning("failed to update sent transactions: {}".format(e))
             return None        
 
     def get_recipient_address(self, rawtx):
@@ -182,7 +189,8 @@ class OceanWallet():
         
     def is_already_sent(self, tx: Transfer):
         if tx.transactionHash in self.sent:
-            self.pending_pegouts.remove(tx.transactionHash)
+            if tx.transactionHash in self.pending_pegouts:
+                self.pending_pegouts.remove(tx.transactionHash)
             return True
         return False
         
@@ -203,6 +211,7 @@ class OceanWallet():
         try:
             for payment in payment_list:
                 is_whitelisted = self.ocean.querywhitelist(payment.to)
+                #The ethereum transaction hash
                 txhash=payment.transactionHash
                 if is_whitelisted:
                     #include metadata in the tx.
@@ -215,6 +224,8 @@ class OceanWallet():
                     txid=None
                     txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt)
 #                    txid = self.ocean.createanytoaddress(payment.to, amount, True, False, 1, False, txhash_fmt)[0]
+#                    txid = self.ocean.signrawtransaction(txid)
+#                    print("signed tx: {}".format(txid))
                     
                     self.pending_pegouts.add(txhash)
                     self.logger.info("Ocean payment: sending tokens to ocean address: {}, amount: {}, nonce: {}, ocean txid: {}".format(payment.to, amount, txhash, txid))
