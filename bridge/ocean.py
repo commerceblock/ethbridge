@@ -50,6 +50,7 @@ class OceanWallet():
         self.decimals = conf["decimals"]
         self.min_confirmations = conf["mindgldconfirmations"]
         self.max_confirmations = conf["maxdgldconfirmations"]
+        self.fee = conf["dgldfixedfee"]
         #A map of deposit 'from' address to nonce
         #Nonce begins at 1 and is incremented by 1 for each new deposit transaction from the same address
         self.deposit_address_nonce = self.key_counter()
@@ -219,7 +220,8 @@ class OceanWallet():
                         self.logger.warning("Pegout ID: {} already pending".format(txhash))
                         continue
                     amount=payment.amount
-                    amount=amount/(10 ** self.decimals)
+                    #Convert the amount to DGLD and subtract a transaction fee from the amount
+                    amount=amount/(10 ** self.decimals) - self.fee
                     txhash_fmt=self.format_hex_str(txhash)
                     txid=None
                     txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt)
