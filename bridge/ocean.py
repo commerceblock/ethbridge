@@ -80,8 +80,6 @@ class OceanWallet():
             ocean.importaddress(self.p2sh,"deposit",rescan_needed)
             validate = ocean.validateaddress(self.addresses)
 
-        #The number of transactions associated with the wallet
-        self.tx_skip=0
         #A list of transactions sent from this wallet
         self.sent=set()
         self.update_sent()
@@ -159,17 +157,22 @@ class OceanWallet():
             return None
 
     def update_sent(self):
+        tx_skip=0
         try:
             #Get transactions 100 at a time
             while True:
-                transactions = self.ocean.listtransactions('*', 100, self.tx_skip, False)
+                transactions = self.ocean.listtransactions('*', 100, tx_skip, True)
                 if len(transactions) == 0:
                     break
                 for tx in transactions:
                     if tx['category'] == 'send':
                         txid=tx['txid']
-                        #These are wallet transactions so we use gettransaction followed by decoderawtransaction
-                        rawtx=self.ocean.gettransaction(txid)['hex']
+                        #If the transaction is not in the blockchain or mempool we need to check for in-wallet transactions as well.
+                        try:
+                            rawtx = self.ocean.getrawtransaction(tx["txid"])
+                        except:
+                            #These are wallet transactions so we use gettransaction followed by decoderawtransaction
+                            rawtx=self.ocean.gettransaction(txid)['hex']
                         decoded=self.ocean.decoderawtransaction(rawtx)
                         for out in decoded['vout']:
                             if out['scriptPubKey']['type'] == 'nulldata' and \
@@ -177,7 +180,7 @@ class OceanWallet():
                                 data='0x'+out['scriptPubKey']['hex'][4:]
                                 if data not in self.sent:
                                     self.sent.add(data)
-                self.tx_skip+=len(transactions)
+                tx_skip = tx_skip + len(transactions)
         except Exception as e:
             self.logger.warning("failed to update sent transactions: {}".format(e))
             return None        
