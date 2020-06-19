@@ -36,7 +36,8 @@ def parse_args():
     parser.add_argument('--mindgldconfirmations', default=60, type=int, help="The minimum number of confirmations required for deposit transactions on the DGLD blockchain.")
     parser.add_argument('--maxdgldconfirmations', default=100000, type=int, help="Deposit transactions on the DGLD blockchain will be ignored after this number of confirmations.")
     parser.add_argument('--decimals', default=8, type=int, help="The number of decimal places of the token unit.")
-    parser.add_argument('--dgldfixedfee', default=0.0005, type=float, help="The fee subtracted in DGLD for transferring from wrapped-DGLD to DGLD")
+    parser.add_argument('--dgldfixedfee', default=0.0005, type=float, help="The fee subtracted in DGLD for transferring from wrapped-DGLD to DGLD.")
+    parser.add_argument('--certstore', default=/etc/ssl/certs, help="The directory containing the trusted SSL certificates.")
     return parser.parse_args()
 
 def main():
@@ -66,6 +67,7 @@ def main():
     conf["ethaddress"] = args.ethaddress
     conf["contract"] = args.contract
     conf["dgldfixedfee"] = args.dgldfixedfee
+    conf["certstore"] = args.certstore
 
     signer = None
     if args.hsm:

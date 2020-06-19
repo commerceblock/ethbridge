@@ -34,8 +34,9 @@ class EthWallet():
     
     def __init__(self, conf):
         self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        localhost_pem = pathlib.Path("/Users/lawrence/Projects/ethereum/ethbridge/Amazon_Root_CA_1.pem")
-        self.ssl_context.load_verify_locations(localhost_pem)
+        certstore = pathlib.Path(conf["certstore"])
+        for certfile in certstore.iterdir():
+            self.ssl_context.load_verify_locations(certfile)
         self.provider=Web3.WebsocketProvider(conf["id"],websocket_kwargs={'ssl': self.ssl_context})
         self.w3 = Web3(self.provider)
         if not self.w3.isConnected():
