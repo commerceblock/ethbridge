@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument('--maxdgldconfirmations', default=100000, type=int, help="Deposit transactions on the DGLD blockchain will be ignored after this number of confirmations.")
     parser.add_argument('--decimals', default=8, type=int, help="The number of decimal places of the token unit.")
     parser.add_argument('--dgldfixedfee', default=0.0005, type=float, help="The fee subtracted in DGLD for transferring from wrapped-DGLD to DGLD.")
-    parser.add_argument('--certstore', default="/etc/ssl/certs", type=str, help="The directory containing the trusted SSL certificates.")
+    parser.add_argument('--certstore', default="/etc/ssl/certs/ca-certificates.crt", type=str, help="The file containing the trusted SSL certificates.")
     return parser.parse_args()
 
 def main():
