@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument('--mindgldconfirmations', default=60, type=int, help="The minimum number of confirmations required for deposit transactions on the DGLD blockchain.")
     parser.add_argument('--maxdgldconfirmations', default=100000, type=int, help="Deposit transactions on the DGLD blockchain will be ignored after this number of confirmations.")
     parser.add_argument('--decimals', default=8, type=int, help="The number of decimal places of the token unit.")
+    parser.add_argument('--dgldfixedfee', default=0.0005, type=float, help="The fee subtracted in DGLD for transferring from wrapped-DGLD to DGLD")
     return parser.parse_args()
 
 def main():
@@ -64,6 +65,7 @@ def main():
     conf["ethkey"] = args.ethkey
     conf["ethaddress"] = args.ethaddress
     conf["contract"] = args.contract
+    conf["dgldfixedfee"] = args.dgldfixedfee
 
     signer = None
     if args.hsm:

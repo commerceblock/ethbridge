@@ -1,6 +1,8 @@
-pyopenssl
-python-pkcs11
-cryptography
-web3
-pyOpenSSL
-ethereum-keys
+python-pkcs11==0.6.0
+cryptography==2.9.2
+web3==5.10.0
+pyOpenSSL==19.1.0
+eth-keys==0.3.3
+ecdsa==0.15
+coincurve==13.0.0
+bitcoin==1.1.39
