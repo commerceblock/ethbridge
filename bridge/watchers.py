@@ -13,7 +13,7 @@ from .connectivity import getoceand
 
 INTERVAL_DEFAULT = 60
 
-class OceanWatcher(DaemonThread):
+class Watcher(DaemonThread):
     def __init__(self, conf, signer=None):
         super().__init__()
         self.conf = conf
@@ -25,27 +25,31 @@ class OceanWatcher(DaemonThread):
         self.ocean = OceanWallet(conf)
         self.eth = EthWallet(conf)
 
-    def run(self):
-        while not self.stopped():
-            sleep(self.interval - time() % self.interval)
-            start_time = int(time())
+    def run_ocean(self):
+        #get all addresses and amounts of all transactions received to the deposit address
+        new_txs = self.ocean.get_deposit_txs()
 
-            #get all addresses and amounts of all transactions recieved to the deposit address
-            recieved_txs = self.ocean.get_deposit_txs()
-            #check to see if any have not already been minted
-            new_txs = self.eth.check_deposits(self.conf, recieved_txs)
-            #get address that the deposit has been sent from
-            new_txs = self.ocean.get_sending_address(new_txs)
+        if not new_txs:
+            return
+
+        #get address that the deposit has been sent from - required for checking eth deposits
+        new_txs = self.ocean.get_sending_address(new_txs)
+
+        #check to see if any have not already been minted
+        new_txs = self.eth.check_deposits(new_txs)
+
+        if new_txs:
             for tx in new_txs:
-                self.logger.info("New Ocean deposit: "+tx["txid"]+" Sending address: "+tx["sendingaddress"]+" Amount: "+str(tx["amount"]))
+                self.logger.info("New Ocean deposit: "+tx["txid"]+" Sending address: "+str(tx["sendingaddress"])+" Amount: "+ str(tx["pegamount"]))
             #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
-            mint_txs = self.eth.mint_tokens(self.conf, new_txs)
+            mint_txs = self.eth.mint_tokens(new_txs)
+        else:
+            mint_txs=[]
 
-            for tx in mint_txs:
-                self.logger.info("Mint Eth tokens: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
+        if mint_txs:
+            for tx, receipt in mint_txs:
+                self.logger.info("Mint Eth tokens: "+tx["txid"]+" Address: "+str(tx["sendingaddress"])+" Amount: " + str(tx["pegamount"])  + " Receipt: " + str(receipt))
                 
-            elapsed_time = time() - start_time
-            sleep(self.interval / 2 - (elapsed_time if elapsed_time < self.interval / 2 else 0))
 
     def rpc_retry(self, rpc_func, *args):
         for i in range(5):
@@ -57,42 +61,35 @@ class OceanWatcher(DaemonThread):
         self.logger.error("Failed reconnecting to client")
         self.stop()
 
+    def run_eth(self):
+        #get all addresses and amounts of all transactions received to the deposit address
+        received_txs = self.eth.get_burn_txs()
 
-class EthWatcher(DaemonThread):
-    def __init__(self, conf, signer=None):
-        super().__init__()
-        self.conf = conf
-        self.default_interval = INTERVAL_DEFAULT if "interval" not in conf else conf["interval"]
-        self.interval = self.default_interval
-        self.logger = logging.getLogger(self.__class__.__name__)
+        if not received_txs:
+            return
+            
+        #check to see if any have not already been minted
+        new_txs = self.ocean.check_deposits(received_txs)
+        #new_txs = self.ocean.get_sending_address(new_txs)
+        for tx in new_txs:
+            self.logger.info("New Eth deposit: " + tx.transactionHash + " Eth sender address: " + tx.from_ + " Ocean recipient address: "+tx.to +" Amount: "+str(tx.amount))
+        #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
+        not_whitelisted = self.ocean.send_tokens(new_txs)
+            
+        if not_whitelisted and len(not_whitelisted) > 0:
+            self.logger.info("Did not perform pegout - address not whitelisted - txid: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
+            #sent_back=[]
+            #sent_back = self.eth.mint_tokens(not_whitelisted)
+            #sent_back = self.eth.remint_tokens(not_whitelisted)
 
-        self.signer = signer
-        self.ocean = OceanWallet(conf)
-        self.eth = EthWallet(conf)
-
-
+            #for tx in sent_back:
+            #    self.logger.info("Returned Eth tokens: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
+        
     def run(self):
         while not self.stopped():
             sleep(self.interval - time() % self.interval)
             start_time = int(time())
-
-            #get all addresses and amounts of all transactions recieved to the deposit address
-            recieved_txs = self.eth.get_burn_txs(self.conf)
-            #check to see if any have not already been minted
-            new_txs = self.ocean.check_deposits(self.conf, recieved_txs)
-            new_txs = self.ocean.get_sending_address(new_txs)
-            for tx in new_txs:
-                self.logger.info("New Ocean deposit: "+tx["txid"]+" Sending address: "+tx["address"]+" Amount: "+str(tx["amount"]))
-            #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
-            not_whitelisted = self.ocean.send_tokens(new_txs)
-
-            if len(not_whitelisted) > 0:
-                sent_back = self.eth.mint_tokens(self.conf,not_whitelisted)
-
-                for tx in sent_back:
-                    self.logger.info("Returned Eth tokens: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
-                
+            self.run_ocean()
+            self.run_eth()
             elapsed_time = time() - start_time
             sleep(self.interval / 2 - (elapsed_time if elapsed_time < self.interval / 2 else 0))
-
-
