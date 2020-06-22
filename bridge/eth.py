@@ -1,4 +1,4 @@
-#!/usr/bin/env python3A
+#!/usr/bin/env python3
 from web3 import Web3, HTTPProvider, WebsocketProvider
 import logging
 import sys
@@ -41,6 +41,7 @@ class EthWallet():
         if not self.w3.isConnected():
             raise EthWalletError('web3 failed to connect')
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.gaspricelimit=self.w3.utils.toWei(conf["gaspricelimit"], 'Gwei')
         with open('contract/wrapped_DGLD.json') as json_file:
             abi=json.loads(json_file.read())['abi']
         self.account=Account.from_key(conf['ethkey'])
@@ -184,28 +185,15 @@ class EthWallet():
                 amount=payment['pegamount']                     
                 pegin_function=self.contract.functions.pegin(to, amount, nonce)
                 gasPrice=self.w3.eth.gasPrice
+                
+                if gasPrice > self.gaspricelimit:
+                    self.logger.warning("limiting gas price from {} to {} wei".format(gasPrice, self.gaspricelimit))
+                    gasPrice = self.gaspricelimit
 
-
-#                accountBalanceTx=self.contract.functions.balanceOfWeb3.toChecksumAddress(self.account.address)).buildTransaction({
-#                    'from':self.account.address,
-#                    'nonce': txnonce,
-#                    'gas': 100000,
-#                    'gasPrice': gasPrice
-#                })
-#                signed_tx=self.account.signTransaction(accountBalanceTx)
-#                txn_hash=self.w3.eth.sendRawTransaction(signed_tx.rawTransaction)
-#                txn_receipt = self.w3.eth.waitForTransactionReceipt(txn_hash)
-
-
-#                raw_balance = self.contract.call().balanceOf(self.account.address)
                 raw_balance = self.contract.functions.balanceOf(self.account.address).call()
                 balance = raw_balance // 100000000
                 gas_estimate=self.pegin_gas_estimate
-#                gas_estimate=pegin_function.estimateGas()
 
-                gas_cost=gas_estimate*gasPrice
-#                if gas_estimate > self.txn_gas_limit:
-#                    raise Exception('gas limit exceeded: ' + str(gas_estimate) + ' > ' + str(self.txn_gas_limit))
                 txn = pegin_function.buildTransaction({'nonce': txnonce,
                                                        'from': self.account.address,
                                                        'gas': gas_estimate,
