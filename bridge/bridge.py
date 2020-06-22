@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument('--decimals', default=8, type=int, help="The number of decimal places of the token unit.")
     parser.add_argument('--dgldfixedfee', default=0.0005, type=float, help="The fee subtracted in DGLD for transferring from wrapped-DGLD to DGLD.")
     parser.add_argument('--certstore', default="/etc/ssl/certs/ca-certificates.crt", type=str, help="The file containing the trusted SSL certificates.")
+    parser.add_argument('--gaspricelimit', default=100, type=float, help="The maximum gas price in Gwei.")
     return parser.parse_args()
 
 def main():
@@ -50,6 +51,7 @@ def main():
     )
 
     conf = {}
+    conf["gaspricelimit"] = args.gaspricelimit
     conf["oceanhdmasterkeyid"] = args.oceanhdmasterkeyid
     conf["minethconfirmations"] = args.minethconfirmations
     conf["mindgldconfirmations"] = args.mindgldconfirmations

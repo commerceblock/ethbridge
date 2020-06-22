@@ -74,17 +74,8 @@ class Watcher(DaemonThread):
         for tx in new_txs:
             self.logger.info("New Eth deposit: " + tx.transactionHash + " Eth sender address: " + tx.from_ + " Ocean recipient address: "+tx.to +" Amount: "+str(tx.amount))
         #for each verified new deposit transaction, mint the contract tokens on Ethereum to the sending address
-        not_whitelisted = self.ocean.send_tokens(new_txs)
-            
-        if not_whitelisted and len(not_whitelisted) > 0:
-            self.logger.info("Did not perform pegout - address not whitelisted - txid: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
-            #sent_back=[]
-            #sent_back = self.eth.mint_tokens(not_whitelisted)
-            #sent_back = self.eth.remint_tokens(not_whitelisted)
-
-            #for tx in sent_back:
-            #    self.logger.info("Returned Eth tokens: "+tx["txid"]+" Address: "+tx["address"]+" Amount: "+str(tx["amount"]))
-        
+        self.ocean.send_tokens(new_txs)
+                    
     def run(self):
         while not self.stopped():
             sleep(self.interval - time() % self.interval)
