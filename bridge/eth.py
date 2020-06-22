@@ -41,7 +41,7 @@ class EthWallet():
         if not self.w3.isConnected():
             raise EthWalletError('web3 failed to connect')
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.gaspricelimit=self.w3.utils.toWei(conf["gaspricelimit"], 'Gwei')
+        self.gaspricelimit=self.w3.toWei(conf["gaspricelimit"], 'Gwei')
         with open('contract/wrapped_DGLD.json') as json_file:
             abi=json.loads(json_file.read())['abi']
         self.account=Account.from_key(conf['ethkey'])
