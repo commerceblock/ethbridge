@@ -9,6 +9,15 @@ from .utils import pub_to_dgld_address, PegID, Transfer
 
 
 class OceanWallet():
+    class HDKeyIDError(Exception):
+        def __init__(self, expected, found):
+            self.expected=expected
+            self.found=found
+
+        def __str__(self):
+            return "OceanWallet HD Key ID Error: expected {}, found {}".format(self.expected, self.found)
+
+    
     #Overrides the > and < comparison operators to sort by numeric value of blockindex
     #If block indices are equal, sorts by txid
     #Note that txid is stored as a string, so the comparison is lexicographic by ASCII value
@@ -45,6 +54,11 @@ class OceanWallet():
     def __init__(self, conf):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.ocean = getoceand(conf)
+        hdkey=self.ocean.getwalletinfo()["hdmasterkeyid"]
+        if hdkey != conf["oceanhdmasterkeyid"]:
+            err = self.HDKeyIDError(conf["oceanhdmasterkeyid"], hdkey)
+            self.logger.error("{}".format(err))
+            raise err
         self.key = conf["oceankey"]
         self.address = conf["oceanaddress"]
         self.decimals = conf["decimals"]
