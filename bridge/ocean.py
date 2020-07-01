@@ -60,6 +60,7 @@ class OceanWallet():
             self.logger.error("{}".format(err))
             raise err
         self.key = conf["oceankey"]
+        self.changekey = conf["oceanchangekey"]
         self.address = conf["oceanaddress"]
         self.changeaddress = conf["oceanchangeaddress"]
         self.decimals = conf["decimals"]
@@ -83,6 +84,12 @@ class OceanWallet():
                 self.ocean.importprivkey(self.key,"privkey",rescan_needed)
             except Exception as e:
                 self.logger.error("{}\nFailed to import Ocean wallet private key".format(e))
+                sys.exit(1)
+
+            try:
+                self.ocean.importprivkey(self.changekey,"privkey",rescan_needed)
+            except Exception as e:
+                self.logger.error("{}\nFailed to import Ocean wallet change private key".format(e))
                 sys.exit(1)
 
             #Have just imported the private key so another rescan should be unnecesasary

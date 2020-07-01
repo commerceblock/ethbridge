@@ -28,6 +28,7 @@ def parse_args():
     parser.add_argument('--ethaddress', required=True, type=str, help="Address for Ethereum issuance")
 
     parser.add_argument('--oceankey', default=PRVKEY, type=str, help="Private key for ocean bridge address")
+    parser.add_argument('--oceanchangekey', default=CHANGEPRVKEY, type=str, help="Private key for ocean bridge change address")
     parser.add_argument('--oceanaddress', type=str, help="Ocean bridge deposit address")
     parser.add_argument('--oceanchangeaddress', type=str, help="Ocean bridge address where change will be sent to")
     parser.add_argument('--oceanhdmasterkeyid', type=str, help="The ID of the master public key of the ocean node HD wallet")
@@ -67,6 +68,7 @@ def main():
 
     ocnk = args.oceankey
     conf["oceankey"] = ocnk
+    conf["oceanchangekey"] = args.oceanchangekey
     conf["oceanaddress"] = args.oceanaddress
     conf["oceanchangeaddress"] = args.oceanchangeaddress
     conf["ethkey"] = args.ethkey
