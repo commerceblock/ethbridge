@@ -61,6 +61,7 @@ class OceanWallet():
             raise err
         self.key = conf["oceankey"]
         self.address = conf["oceanaddress"]
+        self.changeaddress = conf["oceanchangeaddress"]
         self.decimals = conf["decimals"]
         self.min_confirmations = conf["mindgldconfirmations"]
         self.max_confirmations = conf["maxdgldconfirmations"]
@@ -241,7 +242,7 @@ class OceanWallet():
                     amount=amount/(10 ** self.decimals) - self.fee
                     txhash_fmt=self.format_hex_str(txhash)
                     txid=None
-                    txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt)
+                    txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt, self.changeaddress)
 #                    txid = self.ocean.createanytoaddress(payment.to, amount, True, False, 1, False, txhash_fmt)[0]
 #                    txid = self.ocean.signrawtransaction(txid)
 #                    print("signed tx: {}".format(txid))
