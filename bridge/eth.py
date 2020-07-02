@@ -133,7 +133,7 @@ class EthWallet():
                                         nonce=nonce_dict[transactionHash])] = transactionHash
 
     def get_ocean_destination_from_burn_event(self, event):
-        self.logger.info("get ocean destination from burn event: {} - get transaction {}", event, event['transactionHash'])
+        self.logger.info("get ocean destination from burn event: {} - get transaction {}".format(event, event['transactionHash']))
         tx = self.w3.eth.getTransaction(event['transactionHash'])
         self.logger.info("getting dgld address from transaction: {}".format(tx))
         result = pub_to_dgld_address(compress(int.from_bytes(tx['publicKey'][:32], byteorder='big'), int.from_bytes(tx['publicKey'][32:], byteorder='big')))
