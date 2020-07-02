@@ -141,7 +141,7 @@ class EthWallet():
         publicKey=bytes.fromhex(self.get_public_key_from_eth_tx(tx)[2:])
         result = pub_to_dgld_address(compress(int.from_bytes(publicKey[:32], byteorder='big'), int.from_bytes(publicKey[32:], byteorder='big')))
         self.logger.info("returning dgld address: {}".format(result))
-        return 
+        return result
 
     def get_public_key_from_eth_tx(self, tx):
         s = self.w3.eth.account._keys.Signature(vrs=(
