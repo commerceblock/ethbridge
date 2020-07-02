@@ -138,16 +138,16 @@ class EthWallet():
         self.logger.info("get ocean destination from burn event: {} - get transaction {}".format(event, event['transactionHash']))
         tx = self.w3.eth.getTransaction(event['transactionHash'])
         self.logger.info("getting dgld address from transaction: {}".format(tx))
-        publicKey=bytes.fromhex(get_public_key_from_eth_tx(tx)[2:])
+        publicKey=bytes.fromhex(self.get_public_key_from_eth_tx(tx)[2:])
         result = pub_to_dgld_address(compress(int.from_bytes(publicKey[:32], byteorder='big'), int.from_bytes(publicKey[32:], byteorder='big')))
         self.logger.info("returning dgld address: {}".format(result))
         return 
 
     def get_public_key_from_eth_tx(self, tx):
-        s = w3.eth.account._keys.Signature(vrs=(
+        s = self.w3.eth.account._keys.Signature(vrs=(
             to_standard_v(extract_chain_id(tx.v)[1]),
-            w3.toInt(tx.r),
-            w3.toInt(tx.s)
+            self.w3.toInt(tx.r),
+            self.w3.toInt(tx.s)
         ))
         tt = {k:tx[k] for k in ALLOWED_TRANSACTION_KEYS - {'chainId', 'data'}}
         tt['data']=tx.input
