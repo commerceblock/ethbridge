@@ -150,8 +150,10 @@ class EthWallet():
             self.logger.info("Getting all pegout filter entries.")
             events = pegout_filter.get_all_entries()
             synced_to_block=self.synced_to_block
+            self.logger.info("Getting max block number.")
             maxblock = self.get_max_blocknumber()
-            
+
+            self.logger.info("Processing events.")
             for event in events:
                 #Set the 'to' address to the ocean dgld address
                 #This enforces the minimum number of confirmations
@@ -167,6 +169,7 @@ class EthWallet():
             self.logger.warning("failed get eth burn transactions: {}".format(e))
             return None
 
+        self.logger.info("... finished update pegout txs.")
         self.synced_to_block=synced_to_block
         
     #get the latest transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
