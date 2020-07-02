@@ -141,10 +141,13 @@ class EthWallet():
         self.update_pegout_txs(self.fromBlock)
 
     def update_pegout_txs(self, fromBlock=None):
+        self.logger.info("Update pegout txs...")
         if fromBlock == None:
             fromBlock=self.synced_to_block + 1
         try:
+            self.logger.info("Getting pegout filter. fromBlock = {}".format(fromBlock))
             pegout_filter=self.get_pegout_filter(fromBlock)
+            self.logger.info("Getting all pegout filter entries.")
             events = pegout_filter.get_all_entries()
             synced_to_block=self.synced_to_block
             maxblock = self.get_max_blocknumber()
