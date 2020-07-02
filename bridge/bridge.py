@@ -14,6 +14,7 @@ from .hsm import HsmPkcs11
 from .connectivity import getoceand, loadConfig
 
 PRVKEY = ""
+CHANGEPRVKEY = ""
 
 def parse_args():
     parser = argparse.ArgumentParser()
