@@ -232,7 +232,7 @@ class EthWallet():
                 nonce = payment['sendingaddress'].nonce
                 amount=payment['pegamount']                     
                 pegin_function=self.contract.functions.pegin(to, amount, nonce)
-                gasPrice=long(self.w3.eth.gasPrice*1.1)
+                gasPrice=int(self.w3.eth.gasPrice*1.1)
                 
                 if gasPrice > self.gaspricelimit:
                     self.logger.warning("limiting gas price from {} to {} wei".format(gasPrice, self.gaspricelimit))

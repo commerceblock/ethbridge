@@ -251,11 +251,11 @@ class OceanWallet():
                     amount=amount/(10 ** self.decimals) - self.fee
                     txhash_fmt=self.format_hex_str(txhash)
                     txid=None
+                    
                     txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt, self.changeaddress)
 #                    txid = self.ocean.createanytoaddress(payment.to, amount, True, False, 1, False, txhash_fmt)[0]
 #                    txid = self.ocean.signrawtransaction(txid)
 #                    print("signed tx: {}".format(txid))
-                    
                     self.pending_pegouts.add(txhash)
                     self.logger.info("Ocean payment: sending tokens to ocean address: {}, amount: {}, nonce: {}, ocean txid: {}".format(payment.to, amount, txhash, txid))
                 else:
