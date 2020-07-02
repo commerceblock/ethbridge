@@ -42,6 +42,8 @@ def parse_args():
     parser.add_argument('--dgldfixedfee', default=0.0005, type=float, help="The fee subtracted in DGLD for transferring from wrapped-DGLD to DGLD.")
     parser.add_argument('--certstore', default="/etc/ssl/certs/ca-certificates.crt", type=str, help="The file containing the trusted SSL certificates.")
     parser.add_argument('--gaspricelimit', default=100, type=float, help="The maximum gas price in Gwei.")
+    parser.add_argument('--ethwstimeout', default=1000, type=int, help="The timeout in seconds for the ethereum node websocket requests.")
+    parser.add_argument('--ethfromblock', default=10374753, type=int, help="The block height from which to filter for events")
     return parser.parse_args()
 
 def main():
@@ -53,6 +55,8 @@ def main():
     )
 
     conf = {}
+    conf["ethfromblock"]=args.ethfromblock
+    conf["ethwstimeout"]=args.ethwstimeout
     conf["gaspricelimit"] = args.gaspricelimit
     conf["oceanhdmasterkeyid"] = args.oceanhdmasterkeyid
     conf["minethconfirmations"] = args.minethconfirmations

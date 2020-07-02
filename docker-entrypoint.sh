@@ -10,6 +10,8 @@ elif [ -f /run/secrets/ocean_pass ] && \
     update-ca-certificates && \
     creds=("--rpcpassword=$(cat /run/secrets/ocean_pass)" \
            "--ethkey=$(cat /run/secrets/eth_priv_key)" \
+           "--id=$(cat /run/secrets/infura_endpoint)" \
+           "--oceanhdmasterkey=$(cat /run/secrets/ocean_hdmaster_key)" \
            "--oceankey=$(cat /run/secrets/ocean_priv_key)")
 elif [ -f /run/secrets/ocean_pass ]; then
     creds=("--rpcpassword=$(cat /run/secrets/ocean_pass)")

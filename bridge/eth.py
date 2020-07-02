@@ -33,10 +33,11 @@ class EthWallet():
     #Transfer = collections.namedtuple('Transfer', 'from_ to amount transactionHash')
     
     def __init__(self, conf):
+        self.fromBlock=conf["ethfromblock"]
         self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         certstore = pathlib.Path(conf["certstore"])
         self.ssl_context.load_verify_locations(certstore)
-        self.provider=Web3.WebsocketProvider(conf["id"],websocket_kwargs={'ssl': self.ssl_context})
+        self.provider=Web3.WebsocketProvider(conf["id"],websocket_kwargs={'ssl': self.ssl_context, 'timeout': 999999999}, websocket_timeout=conf["ethwstimeout"])
         self.w3 = Web3(self.provider)
         if not self.w3.isConnected():
             raise EthWalletError('web3 failed to connect')
@@ -65,6 +66,8 @@ class EthWallet():
 
     #A new filter must be redeployed each time they are used as persistency is not guaranteed
     def get_mint_filter(self, fromBlock=None):
+        if fromBlock == None:
+            fromBlock=self.fromBlock
         #Mint events are transfers from the zero address
         filter_builder=self.contract.events.Transfer.build_filter()
         filter_builder.fromBlock=fromBlock
@@ -72,12 +75,16 @@ class EthWallet():
         return filter_builder.deploy(self.w3)
 
     def get_pegin_filter(self, fromBlock=None):
+        if fromBlock == None:
+            fromBlock=self.fromBlock
         #Pegin events
         filter_builder=self.contract.events.Pegin.build_filter()
         filter_builder.fromBlock=fromBlock
         return filter_builder.deploy(self.w3)
 
     def get_pegout_filter(self, fromBlock=None):
+        if fromBlock == None:
+            fromBlock=self.fromBlock
         #A filter for the ethereum log for pegout events
         filter_builder=self.contract.events.Transfer.build_filter()
         filter_builder.fromBlock=fromBlock
@@ -86,7 +93,7 @@ class EthWallet():
 
     def init_minted(self):
         self.minted={}
-        self.update_minted(0)
+        self.update_minted(self.fromBlock)
 
     def update_minted(self, fromBlock=None):
         if fromBlock == None:
@@ -118,7 +125,7 @@ class EthWallet():
 
     def init_pegout_txs(self):
         self.pegout_txs=[]
-        self.update_pegout_txs(0)
+        self.update_pegout_txs(self.fromBlock)
 
     def update_pegout_txs(self, fromBlock=None):
         if fromBlock == None:
