@@ -102,15 +102,22 @@ class EthWallet():
         self.update_minted(self.fromBlock)
 
     def update_minted(self, fromBlock=None):
+        self.logger.info("Eth updating minted...")
         if fromBlock == None:
             fromBlock=self.synced_to_block + 1
+        self.logger.info("Getting filters. fromBlock = {}".format(fromBlock))
         mint_filter=self.get_mint_filter(fromBlock)
         pegin_filter=self.get_pegin_filter(fromBlock)
+        self.logger.info("Getting all mint_filter entries".format(fromBlock))
         entries=mint_filter.get_all_entries()
+        self.logger.info("Getting all pegin_filter entries".format(fromBlock))
         pegin_entries=pegin_filter.get_all_entries()
 
         if entries:
+            self.logger.info("Entries found, updating minted from events".format(fromBlock))
             self.update_minted_from_events(entries, pegin_entries)
+
+        self.logger.info("...eth finished updating minted.")
         
     def update_minted_from_events(self, events, pegin_events):
         nonce_dict={}
