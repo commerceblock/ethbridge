@@ -60,7 +60,9 @@ class OceanWallet():
             self.logger.error("{}".format(err))
             raise err
         self.key = conf["oceankey"]
+        self.changekey = conf["oceanchangekey"]
         self.address = conf["oceanaddress"]
+        self.changeaddress = conf["oceanchangeaddress"]
         self.decimals = conf["decimals"]
         self.min_confirmations = conf["mindgldconfirmations"]
         self.max_confirmations = conf["maxdgldconfirmations"]
@@ -82,6 +84,12 @@ class OceanWallet():
                 self.ocean.importprivkey(self.key,"privkey",rescan_needed)
             except Exception as e:
                 self.logger.error("{}\nFailed to import Ocean wallet private key".format(e))
+                sys.exit(1)
+
+            try:
+                self.ocean.importprivkey(self.changekey,"privkey",rescan_needed)
+            except Exception as e:
+                self.logger.error("{}\nFailed to import Ocean wallet change private key".format(e))
                 sys.exit(1)
 
             #Have just imported the private key so another rescan should be unnecesasary
@@ -241,7 +249,7 @@ class OceanWallet():
                     amount=amount/(10 ** self.decimals) - self.fee
                     txhash_fmt=self.format_hex_str(txhash)
                     txid=None
-                    txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt)
+                    txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt, self.changeaddress)
 #                    txid = self.ocean.createanytoaddress(payment.to, amount, True, False, 1, False, txhash_fmt)[0]
 #                    txid = self.ocean.signrawtransaction(txid)
 #                    print("signed tx: {}".format(txid))

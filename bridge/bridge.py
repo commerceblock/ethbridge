@@ -14,6 +14,7 @@ from .hsm import HsmPkcs11
 from .connectivity import getoceand, loadConfig
 
 PRVKEY = ""
+CHANGEPRVKEY = ""
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -28,7 +29,9 @@ def parse_args():
     parser.add_argument('--ethaddress', required=True, type=str, help="Address for Ethereum issuance")
 
     parser.add_argument('--oceankey', default=PRVKEY, type=str, help="Private key for ocean bridge address")
+    parser.add_argument('--oceanchangekey', default=CHANGEPRVKEY, type=str, help="Private key for ocean bridge change address")
     parser.add_argument('--oceanaddress', type=str, help="Ocean bridge deposit address")
+    parser.add_argument('--oceanchangeaddress', type=str, help="Ocean bridge address where change will be sent to")
     parser.add_argument('--oceanhdmasterkeyid', type=str, help="The ID of the master public key of the ocean node HD wallet")
     parser.add_argument('--hsm', default=False, type=bool, help="Specify if an HSM will be used for signing signing transactions")
     parser.add_argument('--whitelist', default=0, type=int, help="Whitelist policy: 0. None. 1. Save tx if not whitelisted. 2. Return Eth tokens to address if not whitelisted.")
@@ -40,6 +43,8 @@ def parse_args():
     parser.add_argument('--dgldfixedfee', default=0.0005, type=float, help="The fee subtracted in DGLD for transferring from wrapped-DGLD to DGLD.")
     parser.add_argument('--certstore', default="/etc/ssl/certs/ca-certificates.crt", type=str, help="The file containing the trusted SSL certificates.")
     parser.add_argument('--gaspricelimit', default=100, type=float, help="The maximum gas price in Gwei.")
+    parser.add_argument('--ethwstimeout', default=1000, type=int, help="The timeout in seconds for the ethereum node websocket requests.")
+    parser.add_argument('--ethfromblock', default=10374753, type=int, help="The block height from which to filter for events")
     return parser.parse_args()
 
 def main():
@@ -51,6 +56,8 @@ def main():
     )
 
     conf = {}
+    conf["ethfromblock"]=args.ethfromblock
+    conf["ethwstimeout"]=args.ethwstimeout
     conf["gaspricelimit"] = args.gaspricelimit
     conf["oceanhdmasterkeyid"] = args.oceanhdmasterkeyid
     conf["minethconfirmations"] = args.minethconfirmations
@@ -66,7 +73,9 @@ def main():
 
     ocnk = args.oceankey
     conf["oceankey"] = ocnk
+    conf["oceanchangekey"] = args.oceanchangekey
     conf["oceanaddress"] = args.oceanaddress
+    conf["oceanchangeaddress"] = args.oceanchangeaddress
     conf["ethkey"] = args.ethkey
     conf["ethaddress"] = args.ethaddress
     conf["contract"] = args.contract
