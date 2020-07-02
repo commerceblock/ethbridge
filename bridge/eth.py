@@ -1,4 +1,4 @@
-#!/usr/bAOAin/env python3
+#!/usr/bin/env python3
 from web3 import Web3, HTTPProvider, WebsocketProvider
 import logging
 import sys
