@@ -33,30 +33,36 @@ class EthWallet():
     #Transfer = collections.namedtuple('Transfer', 'from_ to amount transactionHash')
     
     def __init__(self, conf):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.fromBlock=conf["ethfromblock"]
         self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         certstore = pathlib.Path(conf["certstore"])
         self.ssl_context.load_verify_locations(certstore)
+        self.logger.info("Initializing websocket provider...")
         self.provider=Web3.WebsocketProvider(conf["id"],websocket_kwargs={'ssl': self.ssl_context, 'timeout': 999999999}, websocket_timeout=conf["ethwstimeout"])
+        self.logger.info("Initializing web3...")
         self.w3 = Web3(self.provider)
         if not self.w3.isConnected():
             raise EthWalletError('web3 failed to connect')
-        self.logger = logging.getLogger(self.__class__.__name__)
         self.gaspricelimit=self.w3.toWei(conf["gaspricelimit"], 'Gwei')
         with open('contract/wrapped_DGLD.json') as json_file:
             abi=json.loads(json_file.read())['abi']
+        self.logger.info("Initializing eth account...")
         self.account=Account.from_key(conf['ethkey'])
         self.w3.defaultAccount=self.account
         self.key=conf['ethkey']
         assert(self.account.address == conf['ethaddress'])
+        self.logger.info("Initializing contract...")
         self.contract=self.w3.eth.contract(address=conf['contract'],abi=abi)
         #Get the pegout address
+        self.logger.info("Getting pegout address...")
         self.pegout_address=self.contract.functions.pegoutAddress().call()
         self.minconfirmations=conf['minethconfirmations']
         #The block up to which pegouts have been processed
         self.synced_to_block=0       
         self.pegin_gas_estimate=100000
         #Subscribe to events
+        self.logger.info("Initializing event logs...")
         self.init_minted()
         self.init_pegout_txs()
 

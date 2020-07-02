@@ -27,16 +27,22 @@ class Watcher(DaemonThread):
 
     def run_ocean(self):
         #get all addresses and amounts of all transactions received to the deposit address
+        self.logger.info("Getting ocean deposit txs...")
         new_txs = self.ocean.get_deposit_txs()
+        self.logger.info("...finished getting ocean deposit txs")
 
         if not new_txs:
             return
 
         #get address that the deposit has been sent from - required for checking eth deposits
+        self.logger.info("Ocean getting sending addresses...")
         new_txs = self.ocean.get_sending_address(new_txs)
+        self.logger.info("...finished getting sending addresses.")
 
         #check to see if any have not already been minted
+        self.logger.info("Ocean checking eth deposits...")
         new_txs = self.eth.check_deposits(new_txs)
+        self.logger.info("finished checking eth deposits.")
 
         if new_txs:
             for tx in new_txs:
@@ -63,13 +69,17 @@ class Watcher(DaemonThread):
 
     def run_eth(self):
         #get all addresses and amounts of all transactions received to the deposit address
+        self.logger.info("Getting eth burn txs...")
         received_txs = self.eth.get_burn_txs()
-
+        self.logger.info("...finished getting eth burn txs.")
+        
         if not received_txs:
             return
-            
+
+        self.logger.info("Checking ocean deposits...")
         #check to see if any have not already been minted
         new_txs = self.ocean.check_deposits(received_txs)
+        self.logger.info("...finished checking ocean deposits.")
         #new_txs = self.ocean.get_sending_address(new_txs)
         for tx in new_txs:
             self.logger.info("New Eth deposit: " + tx.transactionHash + " Eth sender address: " + tx.from_ + " Ocean recipient address: "+tx.to +" Amount: "+str(tx.amount))
