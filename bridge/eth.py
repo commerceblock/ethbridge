@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bAOAin/env python3
 from web3 import Web3, HTTPProvider, WebsocketProvider
 import logging
 import sys
@@ -11,7 +11,9 @@ from time import sleep, time
 import ssl
 import pathlib
 from .utils import PegID, Transfer, pub_bytes_to_eth_address, pub_to_dgld_address, compress
-
+from eth_account._utils.signing import extract_chain_id, to_standard_v
+from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
+from eth_account._utils.transactions import serializable_unsigned_transaction_from_dict
 
 class EthWalletError(Exception):
     def __init__(self, *args):
@@ -136,10 +138,26 @@ class EthWallet():
         self.logger.info("get ocean destination from burn event: {} - get transaction {}".format(event, event['transactionHash']))
         tx = self.w3.eth.getTransaction(event['transactionHash'])
         self.logger.info("getting dgld address from transaction: {}".format(tx))
-        result = pub_to_dgld_address(compress(int.from_bytes(tx['publicKey'][:32], byteorder='big'), int.from_bytes(tx['publicKey'][32:], byteorder='big')))
+        publicKey=bytes.fromhex(get_public_key_from_eth_tx(tx)[2:])
+        result = pub_to_dgld_address(compress(int.from_bytes(publicKey[:32], byteorder='big'), int.from_bytes(publicKey[32:], byteorder='big')))
         self.logger.info("returning dgld address: {}".format(result))
         return 
 
+    def get_public_key_from_eth_tx(self, tx):
+        s = w3.eth.account._keys.Signature(vrs=(
+            to_standard_v(extract_chain_id(tx.v)[1]),
+            w3.toInt(tx.r),
+            w3.toInt(tx.s)
+        ))
+        tt = {k:tx[k] for k in ALLOWED_TRANSACTION_KEYS - {'chainId', 'data'}}
+        tt['data']=tx.input
+        tt['chainId']=extract_chain_id(tx.v)[0]
+        tt = {k:tx[k] for k in ALLOWED_TRANSACTION_KEYS - {'chainId', 'data'}}
+        tt['data']=tx.input
+        tt['chainId']=extract_chain_id(tx.v)[0]
+        ut = serializable_unsigned_transaction_from_dict(tt)
+        return s.recover_public_key_from_msg_hash(ut.hash()).to_hex()
+    
     def init_pegout_txs(self):
         self.pegout_txs=[]
         self.update_pegout_txs(self.fromBlock)
