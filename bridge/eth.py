@@ -35,6 +35,7 @@ class EthWallet():
     def __init__(self, conf):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.fromBlock=conf["ethfromblock"]
+        self.synced_to_block=self.fromBlock       
         self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         certstore = pathlib.Path(conf["certstore"])
         self.ssl_context.load_verify_locations(certstore)
@@ -59,7 +60,6 @@ class EthWallet():
         self.pegout_address=self.contract.functions.pegoutAddress().call()
         self.minconfirmations=conf['minethconfirmations']
         #The block up to which pegouts have been processed
-        self.synced_to_block=0       
         self.pegin_gas_estimate=100000
         #Subscribe to events
         self.logger.info("Initializing event logs...")
