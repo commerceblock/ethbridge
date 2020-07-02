@@ -54,6 +54,7 @@ class OceanWallet():
     def __init__(self, conf):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.ocean = getoceand(conf)
+        self.logger.info("Getting ocean wallet info...")
         hdkey=self.ocean.getwalletinfo()["hdmasterkeyid"]
         if hdkey != conf["oceanhdmasterkeyid"]:
             err = self.HDKeyIDError(conf["oceanhdmasterkeyid"], hdkey)
@@ -80,6 +81,7 @@ class OceanWallet():
         self.pending_pegouts = set()
         
         if have_va_prvkey == False:
+            self.logger.info("Importing priv key...")
             try:
                 self.ocean.importprivkey(self.key,"privkey",rescan_needed)
             except Exception as e:
@@ -96,6 +98,7 @@ class OceanWallet():
             rescan_needed=False
 
         #Check if we still need to import the address given that we have just imported the private key
+        self.logger.info("Ocean validating address...")
         validate = self.ocean.validateaddress(self.address)
         have_va_addr = bool(validate["ismine"])
         if have_va_addr == False:
@@ -106,7 +109,6 @@ class OceanWallet():
         self.sent=set()
         self.update_sent()
         self.pubkey_map={}
-
     def get_deposit_txs(self):
         deposit_txs = []
         try:
@@ -249,11 +251,11 @@ class OceanWallet():
                     amount=amount/(10 ** self.decimals) - self.fee
                     txhash_fmt=self.format_hex_str(txhash)
                     txid=None
+                    
                     txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt, self.changeaddress)
 #                    txid = self.ocean.createanytoaddress(payment.to, amount, True, False, 1, False, txhash_fmt)[0]
 #                    txid = self.ocean.signrawtransaction(txid)
 #                    print("signed tx: {}".format(txid))
-                    
                     self.pending_pegouts.add(txhash)
                     self.logger.info("Ocean payment: sending tokens to ocean address: {}, amount: {}, nonce: {}, ocean txid: {}".format(payment.to, amount, txhash, txid))
                 else:

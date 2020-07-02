@@ -11,7 +11,9 @@ from time import sleep, time
 import ssl
 import pathlib
 from .utils import PegID, Transfer, pub_bytes_to_eth_address, pub_to_dgld_address, compress
-
+from eth_account._utils.signing import extract_chain_id, to_standard_v
+from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
+from eth_account._utils.transactions import serializable_unsigned_transaction_from_dict
 
 class EthWalletError(Exception):
     def __init__(self, *args):
@@ -33,30 +35,36 @@ class EthWallet():
     #Transfer = collections.namedtuple('Transfer', 'from_ to amount transactionHash')
     
     def __init__(self, conf):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.fromBlock=conf["ethfromblock"]
+        self.synced_to_block=self.fromBlock       
         self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         certstore = pathlib.Path(conf["certstore"])
         self.ssl_context.load_verify_locations(certstore)
+        self.logger.info("Initializing websocket provider...")
         self.provider=Web3.WebsocketProvider(conf["id"],websocket_kwargs={'ssl': self.ssl_context, 'timeout': 999999999}, websocket_timeout=conf["ethwstimeout"])
+        self.logger.info("Initializing web3...")
         self.w3 = Web3(self.provider)
         if not self.w3.isConnected():
             raise EthWalletError('web3 failed to connect')
-        self.logger = logging.getLogger(self.__class__.__name__)
         self.gaspricelimit=self.w3.toWei(conf["gaspricelimit"], 'Gwei')
         with open('contract/wrapped_DGLD.json') as json_file:
             abi=json.loads(json_file.read())['abi']
+        self.logger.info("Initializing eth account...")
         self.account=Account.from_key(conf['ethkey'])
         self.w3.defaultAccount=self.account
         self.key=conf['ethkey']
         assert(self.account.address == conf['ethaddress'])
+        self.logger.info("Initializing contract...")
         self.contract=self.w3.eth.contract(address=conf['contract'],abi=abi)
         #Get the pegout address
+        self.logger.info("Getting pegout address...")
         self.pegout_address=self.contract.functions.pegoutAddress().call()
         self.minconfirmations=conf['minethconfirmations']
         #The block up to which pegouts have been processed
-        self.synced_to_block=0       
         self.pegin_gas_estimate=100000
         #Subscribe to events
+        self.logger.info("Initializing event logs...")
         self.init_minted()
         self.init_pegout_txs()
 
@@ -96,15 +104,22 @@ class EthWallet():
         self.update_minted(self.fromBlock)
 
     def update_minted(self, fromBlock=None):
+        self.logger.info("Eth updating minted...")
         if fromBlock == None:
             fromBlock=self.synced_to_block + 1
+        self.logger.info("Getting filters. fromBlock = {}".format(fromBlock))
         mint_filter=self.get_mint_filter(fromBlock)
         pegin_filter=self.get_pegin_filter(fromBlock)
+        self.logger.info("Getting all mint_filter entries".format(fromBlock))
         entries=mint_filter.get_all_entries()
+        self.logger.info("Getting all pegin_filter entries".format(fromBlock))
         pegin_entries=pegin_filter.get_all_entries()
 
         if entries:
+            self.logger.info("Entries found, updating minted from events".format(fromBlock))
             self.update_minted_from_events(entries, pegin_entries)
+
+        self.logger.info("...eth finished updating minted.")
         
     def update_minted_from_events(self, events, pegin_events):
         nonce_dict={}
@@ -120,22 +135,47 @@ class EthWallet():
                                         nonce=nonce_dict[transactionHash])] = transactionHash
 
     def get_ocean_destination_from_burn_event(self, event):
+        self.logger.info("get ocean destination from burn event: {} - get transaction {}".format(event, event['transactionHash']))
         tx = self.w3.eth.getTransaction(event['transactionHash'])
-        return pub_to_dgld_address(compress(int.from_bytes(tx['publicKey'][:32], byteorder='big'), int.from_bytes(tx['publicKey'][32:], byteorder='big')))
+        self.logger.info("getting dgld address from transaction: {}".format(tx))
+        publicKey=bytes.fromhex(self.get_public_key_from_eth_tx(tx)[2:])
+        result = pub_to_dgld_address(compress(int.from_bytes(publicKey[:32], byteorder='big'), int.from_bytes(publicKey[32:], byteorder='big')))
+        self.logger.info("returning dgld address: {}".format(result))
+        return result
 
+    def get_public_key_from_eth_tx(self, tx):
+        s = self.w3.eth.account._keys.Signature(vrs=(
+            to_standard_v(extract_chain_id(tx.v)[1]),
+            self.w3.toInt(tx.r),
+            self.w3.toInt(tx.s)
+        ))
+        tt = {k:tx[k] for k in ALLOWED_TRANSACTION_KEYS - {'chainId', 'data'}}
+        tt['data']=tx.input
+        tt['chainId']=extract_chain_id(tx.v)[0]
+        tt = {k:tx[k] for k in ALLOWED_TRANSACTION_KEYS - {'chainId', 'data'}}
+        tt['data']=tx.input
+        tt['chainId']=extract_chain_id(tx.v)[0]
+        ut = serializable_unsigned_transaction_from_dict(tt)
+        return s.recover_public_key_from_msg_hash(ut.hash()).to_hex()
+    
     def init_pegout_txs(self):
         self.pegout_txs=[]
         self.update_pegout_txs(self.fromBlock)
 
     def update_pegout_txs(self, fromBlock=None):
+        self.logger.info("Update pegout txs...")
         if fromBlock == None:
             fromBlock=self.synced_to_block + 1
         try:
+            self.logger.info("Getting pegout filter. fromBlock = {}".format(fromBlock))
             pegout_filter=self.get_pegout_filter(fromBlock)
+            self.logger.info("Getting all pegout filter entries.")
             events = pegout_filter.get_all_entries()
             synced_to_block=self.synced_to_block
+            self.logger.info("Getting max block number.")
             maxblock = self.get_max_blocknumber()
-            
+
+            self.logger.info("Processing events.")
             for event in events:
                 #Set the 'to' address to the ocean dgld address
                 #This enforces the minimum number of confirmations
@@ -151,6 +191,7 @@ class EthWallet():
             self.logger.warning("failed get eth burn transactions: {}".format(e))
             return None
 
+        self.logger.info("... finished update pegout txs.")
         self.synced_to_block=synced_to_block
         
     #get the latest transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
@@ -191,7 +232,7 @@ class EthWallet():
                 nonce = payment['sendingaddress'].nonce
                 amount=payment['pegamount']                     
                 pegin_function=self.contract.functions.pegin(to, amount, nonce)
-                gasPrice=self.w3.eth.gasPrice
+                gasPrice=int(self.w3.eth.gasPrice*1.1)
                 
                 if gasPrice > self.gaspricelimit:
                     self.logger.warning("limiting gas price from {} to {} wei".format(gasPrice, self.gaspricelimit))
