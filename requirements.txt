@@ -1,5 +1,5 @@
 python-pkcs11==0.6.0
-cryptography==2.9.2
+cryptography==3.2
 web3==5.10.0
 pyOpenSSL==19.1.0
 eth-keys==0.3.3
