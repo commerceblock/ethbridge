@@ -96,10 +96,8 @@ def main():
                 raise Exception("Node thread has stopped")
             time.sleep(0.01)
     except KeyboardInterrupt:
-        ocean_watch.stop()
-        ocean_watch.join()
-        eth_watch.stop()
-        eth_watch.join()
+        watch.stop()
+        watch.join()
 
 
 if __name__ == "__main__":
