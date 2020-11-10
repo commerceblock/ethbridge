@@ -173,6 +173,7 @@ class OceanWallet():
                     nonce=self.deposit_address_nonce.increment(address)
                     self.txid_nonce[txid]=nonce
                 tx['sendingaddress']=PegID(address=address,  nonce=nonce)
+                self.logger.info("Sending address: {}".format(tx['sendingaddress']))
                 tx['pegpubkey']=self.pubkey_map[address]
                 new_txs_with_address.append(tx)
             return new_txs_with_address
