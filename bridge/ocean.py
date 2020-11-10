@@ -77,8 +77,8 @@ class OceanWallet():
         watch_only = bool(validate["iswatchonly"])
         have_va_prvkey = have_va_addr and not watch_only
         rescan_needed = True
-        self.received_txids = set()
         self.pending_pegouts = set()
+        self.txid_nonce = set()
         
         if have_va_prvkey == False:
             self.logger.info("Importing priv key...")
@@ -167,11 +167,11 @@ class OceanWallet():
                     self.logger.warning("More than one address as input to txid: {}. Addresses: {}".format(tx["txid"], addresses))
                 #Can only peg in if the send address' pub key is known.
                 txid=tx['txid']
-                if txid in self.received_txids:
-                    nonce=self.deposit_address_nonce[address]
+                if txid in self.txid_nonce:
+                    nonce=self.txid_nonce[txid]
                 else:
                     nonce=self.deposit_address_nonce.increment(address)
-                    self.received_txids.add(txid)
+                    self.txid_nonce[txid]=nonce
                 tx['sendingaddress']=PegID(address=address,  nonce=nonce)
                 tx['pegpubkey']=self.pubkey_map[address]
                 new_txs_with_address.append(tx)
@@ -251,13 +251,12 @@ class OceanWallet():
                     amount=amount/(10 ** self.decimals) - self.fee
                     txhash_fmt=self.format_hex_str(txhash)
                     txid=None
-                    
+                    self.logger.info("Ocean payment: sending tokens to ocean address: {}, amount: {}, nonce: {}, ocean txid: {}".format(payment.to, amount, txhash, txid))
                     txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt, self.changeaddress)
 #                    txid = self.ocean.createanytoaddress(payment.to, amount, True, False, 1, False, txhash_fmt)[0]
 #                    txid = self.ocean.signrawtransaction(txid)
 #                    print("signed tx: {}".format(txid))
                     self.pending_pegouts.add(txhash)
-                    self.logger.info("Ocean payment: sending tokens to ocean address: {}, amount: {}, nonce: {}, ocean txid: {}".format(payment.to, amount, txhash, txid))
                 else:
                     self.logger.warning("Ocean payment: "+payment.to+" from Eth TxID "+txhash+" not whitelisted")
                     non_whitelisted.append(payment)
