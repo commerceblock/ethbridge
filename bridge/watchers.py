@@ -34,11 +34,15 @@ class Watcher(DaemonThread):
         if not new_txs:
             return
 
+        self.logger.info("New txs: " + str(new_txs))
+        
         #get address that the deposit has been sent from - required for checking eth deposits
         self.logger.info("Ocean getting sending addresses...")
         new_txs = self.ocean.get_sending_address(new_txs)
         self.logger.info("...finished getting sending addresses.")
 
+        self.logger.info("Sending addresses: " + str(new_txs))
+        
         #check to see if any have not already been minted
         self.logger.info("Ocean checking eth deposits...")
         new_txs = self.eth.check_deposits(new_txs)

@@ -167,11 +167,8 @@ class OceanWallet():
                     self.logger.warning("More than one address as input to txid: {}. Addresses: {}".format(tx["txid"], addresses))
                 #Can only peg in if the send address' pub key is known.
                 txid=tx['txid']
-                if txid in self.received_txids:
-                    nonce=self.deposit_address_nonce[address]
-                else:
-                    nonce=self.deposit_address_nonce.increment(address)
-                    self.received_txids.add(txid)
+                nonce=self.deposit_address_nonce.increment(address)
+                self.received_txids.add(txid)
                 tx['sendingaddress']=PegID(address=address,  nonce=nonce)
                 tx['pegpubkey']=self.pubkey_map[address]
                 new_txs_with_address.append(tx)
