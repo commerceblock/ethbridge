@@ -254,7 +254,7 @@ class OceanWallet():
                         continue
                     amount=payment.amount
                     #Convert the amount to DGLD and subtract a transaction fee from the amount
-                    amount=amount/(10 ** self.decimals) - self.fee
+                    amount=round(amount/(10 ** self.decimals) - self.fee, 8)
                     txhash_fmt=self.format_hex_str(txhash)
                     txid=None
                     self.logger.info("Ocean payment: sending tokens to ocean address: {}, amount: {}, nonce: {}, ocean txid: {}".format(payment.to, amount, txhash, txid))
