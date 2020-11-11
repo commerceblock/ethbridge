@@ -51,10 +51,15 @@ class EthWallet():
         with open('contract/wrapped_DGLD.json') as json_file:
             abi=json.loads(json_file.read())['abi']
         self.logger.info("Initializing eth account...")
-        self.account=Account.from_key(conf['ethkey'])
-        self.w3.defaultAccount=self.account
+        self.dryrun=conf["dryrun"]
+        self.address=conf['ethaddress']
+        if self.dryrun:
+            self.account=None
+        else:
+            self.account=Account.from_key(conf['ethkey'])
+            assert(self.account.address == self.address)
+            self.w3.defaultAccount=self.account
         self.key=conf['ethkey']
-        assert(self.account.address == conf['ethaddress'])
         self.logger.info("Initializing contract...")
         self.contract=self.w3.eth.contract(address=conf['contract'],abi=abi)
         #Get the pegout address
@@ -135,12 +140,12 @@ class EthWallet():
                                         nonce=nonce_dict[transactionHash])] = transactionHash
 
     def get_ocean_destination_from_burn_event(self, event):
-        self.logger.info("get ocean destination from burn event: {} - get transaction {}".format(event, event['transactionHash']))
+        #self.logger.info("get ocean destination from burn event: {} - get transaction {}".format(event, event['transactionHash']))
         tx = self.w3.eth.getTransaction(event['transactionHash'])
-        self.logger.info("getting dgld address from transaction: {}".format(tx))
+        #self.logger.info("getting dgld address from transaction: {}".format(tx))
         publicKey=bytes.fromhex(self.get_public_key_from_eth_tx(tx)[2:])
         result = pub_to_dgld_address(compress(int.from_bytes(publicKey[:32], byteorder='big'), int.from_bytes(publicKey[32:], byteorder='big')))
-        self.logger.info("returning dgld address: {}".format(result))
+        #self.logger.info("returning dgld address: {}".format(result))
         return result
 
     def get_public_key_from_eth_tx(self, tx):
@@ -226,7 +231,7 @@ class EthWallet():
         previously_minted_txs = []
         try:
             for payment in payment_list:
-                txnonce=self.w3.eth.getTransactionCount(Web3.toChecksumAddress(self.account.address))
+                txnonce=self.w3.eth.getTransactionCount(Web3.toChecksumAddress(self.address))
                 #mint the required tokens
                 to = pub_bytes_to_eth_address(bytes.fromhex(payment['pegpubkey']))
                 nonce = payment['sendingaddress'].nonce
@@ -238,19 +243,22 @@ class EthWallet():
                     self.logger.warning("limiting gas price from {} to {} wei".format(gasPrice, self.gaspricelimit))
                     gasPrice = self.gaspricelimit
 
-                raw_balance = self.contract.functions.balanceOf(self.account.address).call()
+                raw_balance = self.contract.functions.balanceOf(self.address).call()
                 balance = raw_balance // 100000000
                 gas_estimate=self.pegin_gas_estimate
 
                 txn = pegin_function.buildTransaction({'nonce': txnonce,
-                                                       'from': self.account.address,
+                                                       'from': self.address,
                                                        'gas': gas_estimate,
                                                        'gasPrice': gasPrice
                 })
-                signed_txn = self.account.sign_transaction(txn)
-                txn_hash=self.w3.eth.sendRawTransaction(signed_txn.rawTransaction)
-                txn_receipt = self.w3.eth.waitForTransactionReceipt(txn_hash)
-                minted_txs.append((payment, txn_receipt))
+                if self.dryrun:
+                    self.logger.warning("Dry run - not sending transaction: {}".format(txn))
+                else:
+                    signed_txn = self.account.sign_transaction(txn)
+                    txn_hash=self.w3.eth.sendRawTransaction(signed_txn.rawTransaction)
+                    txn_receipt = self.w3.eth.waitForTransactionReceipt(txn_hash)
+                    minted_txs.append((payment, txn_receipt))
             return minted_txs
         except Exception as e:
             self.logger.warning("failed ocean payment tx generation: {}".format(e))

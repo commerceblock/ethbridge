@@ -55,6 +55,7 @@ class OceanWallet():
         self.logger = logging.getLogger(self.__class__.__name__)
         self.ocean = getoceand(conf)
         self.logger.info("Getting ocean wallet info...")
+        self.dryrun=conf["dryrun"]
         hdkey=self.ocean.getwalletinfo()["hdmasterkeyid"]
         if hdkey != conf["oceanhdmasterkeyid"]:
             err = self.HDKeyIDError(conf["oceanhdmasterkeyid"], hdkey)
@@ -77,10 +78,10 @@ class OceanWallet():
         watch_only = bool(validate["iswatchonly"])
         have_va_prvkey = have_va_addr and not watch_only
         rescan_needed = True
-        self.received_txids = set()
         self.pending_pegouts = set()
+        self.txid_nonce = dict()
         
-        if have_va_prvkey == False:
+        if have_va_prvkey == False and self.dryrun == False:
             self.logger.info("Importing priv key...")
             try:
                 self.ocean.importprivkey(self.key,"privkey",rescan_needed)
@@ -101,8 +102,10 @@ class OceanWallet():
         self.logger.info("Ocean validating address...")
         validate = self.ocean.validateaddress(self.address)
         have_va_addr = bool(validate["ismine"])
+        if self.dryrun:
+            have_va_addr = bool(validate["iswatchonly"])
         if have_va_addr == False:
-            ocean.importaddress(self.p2sh,"deposit",rescan_needed)
+            self.ocean.importaddress(self.address,"deposit",rescan_needed)
             validate = ocean.validateaddress(self.addresses)
 
         #A list of transactions sent from this wallet
@@ -167,11 +170,12 @@ class OceanWallet():
                     self.logger.warning("More than one address as input to txid: {}. Addresses: {}".format(tx["txid"], addresses))
                 #Can only peg in if the send address' pub key is known.
                 txid=tx['txid']
-                if txid in self.received_txids:
-                    nonce=self.deposit_address_nonce[address]
+                if txid in self.txid_nonce:
+                    #self.logger.info("Txid in txid_nonce")
+                    nonce=self.txid_nonce[txid]
                 else:
                     nonce=self.deposit_address_nonce.increment(address)
-                    self.received_txids.add(txid)
+                    self.txid_nonce[txid]=nonce
                 tx['sendingaddress']=PegID(address=address,  nonce=nonce)
                 tx['pegpubkey']=self.pubkey_map[address]
                 new_txs_with_address.append(tx)
@@ -204,7 +208,9 @@ class OceanWallet():
                                 data='0x'+out['scriptPubKey']['hex'][4:]
                                 if data not in self.sent:
                                     self.sent.add(data)
+                                    #self.logger.info("added to sent: {}".format(data))
                 tx_skip = tx_skip + len(transactions)
+                
         except Exception as e:
             self.logger.warning("failed to update sent transactions: {}".format(e))
             return None        
@@ -251,13 +257,15 @@ class OceanWallet():
                     amount=amount/(10 ** self.decimals) - self.fee
                     txhash_fmt=self.format_hex_str(txhash)
                     txid=None
-                    
-                    txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt, self.changeaddress)
+                    self.logger.info("Ocean payment: sending tokens to ocean address: {}, amount: {}, nonce: {}, ocean txid: {}".format(payment.to, amount, txhash, txid))
+                    if not self.dryrun:
+                        txid = self.ocean.sendanytoaddress(payment.to, amount, "","", True, False, 1, txhash_fmt, self.changeaddress)
 #                    txid = self.ocean.createanytoaddress(payment.to, amount, True, False, 1, False, txhash_fmt)[0]
 #                    txid = self.ocean.signrawtransaction(txid)
 #                    print("signed tx: {}".format(txid))
-                    self.pending_pegouts.add(txhash)
-                    self.logger.info("Ocean payment: sending tokens to ocean address: {}, amount: {}, nonce: {}, ocean txid: {}".format(payment.to, amount, txhash, txid))
+                        self.pending_pegouts.add(txhash)
+                    else:
+                        self.logger.warning("Dry run - not sending: sendanytoaddress({}, {}, \"\", \"\", True, False, 1, {}, {}".format(payment.to, amount, txhash_fmt, self.changeaddress))
                 else:
                     self.logger.warning("Ocean payment: "+payment.to+" from Eth TxID "+txhash+" not whitelisted")
                     non_whitelisted.append(payment)

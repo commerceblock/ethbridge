@@ -45,6 +45,7 @@ def parse_args():
     parser.add_argument('--gaspricelimit', default=100, type=float, help="The maximum gas price in Gwei.")
     parser.add_argument('--ethwstimeout', default=1000, type=int, help="The timeout in seconds for the ethereum node websocket requests.")
     parser.add_argument('--ethfromblock', default=10374753, type=int, help="The block height from which to filter for events")
+    parser.add_argument('--dryrun', default=False, type=bool, help="Dry run only - do not execute any transactions. Log extra output.")
     return parser.parse_args()
 
 def main():
@@ -81,6 +82,7 @@ def main():
     conf["contract"] = args.contract
     conf["dgldfixedfee"] = args.dgldfixedfee
     conf["certstore"] = args.certstore
+    conf["dryrun"] = args.dryrun
 
     signer = None
     if args.hsm:
@@ -96,10 +98,8 @@ def main():
                 raise Exception("Node thread has stopped")
             time.sleep(0.01)
     except KeyboardInterrupt:
-        ocean_watch.stop()
-        ocean_watch.join()
-        eth_watch.stop()
-        eth_watch.join()
+        watch.stop()
+        watch.join()
 
 
 if __name__ == "__main__":
