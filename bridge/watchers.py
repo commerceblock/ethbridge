@@ -3,6 +3,7 @@ from web3 import Web3, HTTPProvider
 import json
 import sys
 import logging
+import thread
 from func_timeout import func_set_timeout, FunctionTimedOut
 from time import sleep, time
 from hashlib import sha256 as _sha256
@@ -13,6 +14,7 @@ from .test_framework.authproxy import JSONRPCException
 from .connectivity import getoceand
 
 INTERVAL_DEFAULT = 60
+
 
 class Watcher(DaemonThread):
     def __init__(self, conf, signer=None):
@@ -26,7 +28,7 @@ class Watcher(DaemonThread):
         self.ocean = OceanWallet(conf)
         self.eth = EthWallet(conf)
 
-    @func_set_timeout(INTERVAL_DEFAULT)            
+    @func_set_timeout(60)            
     def run_ocean(self):
         #get all addresses and amounts of all transactions received to the deposit address
         self.logger.info("Getting ocean deposit txs...")
@@ -76,7 +78,7 @@ class Watcher(DaemonThread):
         self.logger.error("Failed reconnecting to client")
         self.stop()
 
-    @func_set_timeout(INTERVAL_DEFAULT)            
+    @func_set_timeout(60)            
     def run_eth(self):
         #get all addresses and amounts of all transactions received to the deposit address
         self.logger.info("Getting eth burn txs...")
@@ -104,12 +106,12 @@ class Watcher(DaemonThread):
                 self.run_ocean()
             except FunctionTimedOut:
                 self.logger.info("run_ocean() took too long")       
-                self.stop() 
+                thread.interrupt_main() 
             try:
                 self.run_eth()
             except FunctionTimedOut:
                 self.logger.info("run_eth() took too long")       
-                self.stop() 
+                thread.interrupt_main()
                 
             elapsed_time = time() - start_time
             sleep(self.interval / 2 - (elapsed_time if elapsed_time < self.interval / 2 else 0))
