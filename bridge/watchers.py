@@ -3,6 +3,7 @@ from web3 import Web3, HTTPProvider
 import json
 import sys
 import logging
+from func_timeout import func_set_timeout, FunctionTimedOut
 from time import sleep, time
 from hashlib import sha256 as _sha256
 from .daemon import DaemonThread
@@ -25,6 +26,7 @@ class Watcher(DaemonThread):
         self.ocean = OceanWallet(conf)
         self.eth = EthWallet(conf)
 
+    @func_set_timeout(INTERVAL_DEFAULT)            
     def run_ocean(self):
         #get all addresses and amounts of all transactions received to the deposit address
         self.logger.info("Getting ocean deposit txs...")
@@ -74,6 +76,7 @@ class Watcher(DaemonThread):
         self.logger.error("Failed reconnecting to client")
         self.stop()
 
+    @func_set_timeout(INTERVAL_DEFAULT)            
     def run_eth(self):
         #get all addresses and amounts of all transactions received to the deposit address
         self.logger.info("Getting eth burn txs...")
@@ -97,7 +100,16 @@ class Watcher(DaemonThread):
         while not self.stopped():
             sleep(self.interval - time() % self.interval)
             start_time = int(time())
-            self.run_ocean()
-            self.run_eth()
+            try:
+                self.run_ocean()
+            except FunctionTimedOut:
+                self.logger.info("run_ocean() took too long")       
+                self.stop() 
+            try:
+                self.run_eth()
+            except FunctionTimedOut:
+                self.logger.info("run_eth() took too long")       
+                self.stop() 
+                
             elapsed_time = time() - start_time
             sleep(self.interval / 2 - (elapsed_time if elapsed_time < self.interval / 2 else 0))
