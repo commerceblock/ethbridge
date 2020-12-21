@@ -80,7 +80,6 @@ class Watcher(DaemonThread):
 
     @func_set_timeout(60)            
     def run_eth(self):
-        sleep(61)
         #get all addresses and amounts of all transactions received to the deposit address
         self.logger.info("Getting eth burn txs...")
         received_txs = self.eth.get_burn_txs()
