@@ -3,7 +3,7 @@ from web3 import Web3, HTTPProvider
 import json
 import sys
 import logging
-import thread
+import _thread as thread
 from func_timeout import func_set_timeout, FunctionTimedOut
 from time import sleep, time
 from hashlib import sha256 as _sha256
@@ -80,6 +80,7 @@ class Watcher(DaemonThread):
 
     @func_set_timeout(60)            
     def run_eth(self):
+        sleep(61)
         #get all addresses and amounts of all transactions received to the deposit address
         self.logger.info("Getting eth burn txs...")
         received_txs = self.eth.get_burn_txs()
