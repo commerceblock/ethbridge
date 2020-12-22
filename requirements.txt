@@ -6,3 +6,4 @@ eth-keys==0.3.3
 ecdsa==0.15
 coincurve==13.0.0
 bitcoin==1.1.39
+func-timeout==4.3.5
