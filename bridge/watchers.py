@@ -26,8 +26,12 @@ class Watcher(DaemonThread):
 
         self.signer = signer
         self.ocean = OceanWallet(conf)
-        self.eth = EthWallet(conf)
-
+        try:
+            self.eth = EthWallet(conf)
+        except FunctionTimedOut:
+            self.logger.info("initialising eth wallet took too long")       
+            thread.interrupt_main()
+            
     def run_ocean(self):
         #get all addresses and amounts of all transactions received to the deposit address
         self.logger.info("Getting ocean deposit txs...")

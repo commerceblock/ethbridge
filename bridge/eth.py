@@ -109,6 +109,7 @@ class EthWallet():
         self.minted={}
         self.update_minted(self.fromBlock)
 
+    @func_set_timeout(60)            
     def update_minted(self, fromBlock=None):
         self.logger.info("Eth updating minted...")
         if fromBlock == None:
@@ -168,6 +169,7 @@ class EthWallet():
         self.pegout_txs=[]
         self.update_pegout_txs(self.fromBlock)
 
+    @func_set_timeout(60)            
     def update_pegout_txs(self, fromBlock=None):
         self.logger.info("Update pegout txs...")
         if fromBlock == None:
@@ -201,8 +203,8 @@ class EthWallet():
         self.synced_to_block=synced_to_block
         
     #get the latest transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
-    @func_set_timeout(60)            
     def get_burn_txs(self):
+        sleep(61)
         self.update_pegout_txs()
         pegout_txs=self.pegout_txs
         self.pegout_txs=[]
@@ -216,7 +218,6 @@ class EthWallet():
             return True
         return False
 
-    @func_set_timeout(60)            
     def check_deposits(self, new_txs: [Transfer]):
         if not new_txs:
             return
