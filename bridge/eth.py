@@ -14,6 +14,7 @@ from .utils import PegID, Transfer, pub_bytes_to_eth_address, pub_to_dgld_addres
 from eth_account._utils.signing import extract_chain_id, to_standard_v
 from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
 from eth_account._utils.transactions import serializable_unsigned_transaction_from_dict
+from func_timeout import func_set_timeout
 
 class EthWalletError(Exception):
     def __init__(self, *args):
@@ -125,7 +126,7 @@ class EthWallet():
             self.update_minted_from_events(entries, pegin_entries)
 
         self.logger.info("...eth finished updating minted.")
-        
+
     def update_minted_from_events(self, events, pegin_events):
         nonce_dict={}
         for event in pegin_events:
@@ -200,6 +201,7 @@ class EthWallet():
         self.synced_to_block=synced_to_block
         
     #get the latest transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
+    @func_set_timeout(60)            
     def get_burn_txs(self):
         self.update_pegout_txs()
         pegout_txs=self.pegout_txs
@@ -213,7 +215,8 @@ class EthWallet():
         if pegid in self.minted:
             return True
         return False
-                                            
+
+    @func_set_timeout(60)            
     def check_deposits(self, new_txs: [Transfer]):
         if not new_txs:
             return

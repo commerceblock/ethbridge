@@ -3,8 +3,6 @@ from web3 import Web3, HTTPProvider
 import json
 import sys
 import logging
-import _thread as thread
-from func_timeout import func_set_timeout, FunctionTimedOut
 from time import sleep, time
 from hashlib import sha256 as _sha256
 from .daemon import DaemonThread
@@ -12,6 +10,8 @@ from .ocean import OceanWallet
 from .eth import EthWallet
 from .test_framework.authproxy import JSONRPCException
 from .connectivity import getoceand
+import _thread as thread
+from func_timeout import FunctionTimedOut
 
 INTERVAL_DEFAULT = 60
 
@@ -28,7 +28,6 @@ class Watcher(DaemonThread):
         self.ocean = OceanWallet(conf)
         self.eth = EthWallet(conf)
 
-    @func_set_timeout(60)            
     def run_ocean(self):
         #get all addresses and amounts of all transactions received to the deposit address
         self.logger.info("Getting ocean deposit txs...")
@@ -52,7 +51,11 @@ class Watcher(DaemonThread):
         
         #check to see if any have not already been minted
         self.logger.info("Ocean checking eth deposits...")
-        new_txs = self.eth.check_deposits(new_txs)
+        try:
+            new_txs = self.eth.check_deposits(new_txs)
+        except FunctionTimedOut:
+            self.logger.info("eth.check_deposits() took too long")       
+            thread.interrupt_main() 
         self.logger.info("finished checking eth deposits.")
 
         if new_txs:
@@ -78,11 +81,14 @@ class Watcher(DaemonThread):
         self.logger.error("Failed reconnecting to client")
         self.stop()
 
-    @func_set_timeout(60)            
     def run_eth(self):
         #get all addresses and amounts of all transactions received to the deposit address
         self.logger.info("Getting eth burn txs...")
-        received_txs = self.eth.get_burn_txs()
+        try:
+            received_txs = self.eth.get_burn_txs()
+        except FunctionTimedOut:
+            self.logger.info("eth.get_burn_txs() took too long")       
+            thread.interrupt_main() 
         self.logger.info("...finished getting eth burn txs.")
         
         if not received_txs:
@@ -102,16 +108,7 @@ class Watcher(DaemonThread):
         while not self.stopped():
             sleep(self.interval - time() % self.interval)
             start_time = int(time())
-            try:
-                self.run_ocean()
-            except FunctionTimedOut:
-                self.logger.info("run_ocean() took too long")       
-                thread.interrupt_main() 
-            try:
-                self.run_eth()
-            except FunctionTimedOut:
-                self.logger.info("run_eth() took too long")       
-                thread.interrupt_main()
-                
+            self.run_ocean()
+            self.run_eth()
             elapsed_time = time() - start_time
             sleep(self.interval / 2 - (elapsed_time if elapsed_time < self.interval / 2 else 0))
