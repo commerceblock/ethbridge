@@ -7,7 +7,6 @@ from eth_account import Account
 import collections
 from .utils import pub_bytes_to_eth_address
 import json
-from time import sleep, time
 import ssl
 import pathlib
 from .utils import PegID, Transfer, pub_bytes_to_eth_address, pub_to_dgld_address, compress
@@ -172,7 +171,6 @@ class EthWallet():
     @func_set_timeout(60)            
     def update_pegout_txs(self, fromBlock=None):
         self.logger.info("Update pegout txs...")
-        sleep(61)
         if fromBlock == None:
             fromBlock=self.synced_to_block + 1
         try:
