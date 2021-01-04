@@ -172,6 +172,7 @@ class EthWallet():
     @func_set_timeout(60)            
     def update_pegout_txs(self, fromBlock=None):
         self.logger.info("Update pegout txs...")
+        sleep(61)
         if fromBlock == None:
             fromBlock=self.synced_to_block + 1
         try:
@@ -204,7 +205,6 @@ class EthWallet():
         
     #get the latest transactions on ethereum that have been sent to the burn address (to peg back into Ocean)
     def get_burn_txs(self):
-        sleep(61)
         self.update_pegout_txs()
         pegout_txs=self.pegout_txs
         self.pegout_txs=[]
