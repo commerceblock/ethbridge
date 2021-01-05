@@ -111,6 +111,7 @@ class EthWallet():
     @func_set_timeout(60)            
     def update_minted(self, fromBlock=None):
         self.logger.info("Eth updating minted...")
+        sleep(61)
         if fromBlock == None:
             fromBlock=self.synced_to_block + 1
         self.logger.info("Getting filters. fromBlock = {}".format(fromBlock))
