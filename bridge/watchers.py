@@ -28,9 +28,10 @@ class Watcher(DaemonThread):
         self.ocean = OceanWallet(conf)
         try:
             self.eth = EthWallet(conf)
-        except FunctionTimedOut:
+        except FunctionTimedOut as e:
             self.logger.info("initialising eth wallet took too long")       
             thread.interrupt_main()
+            raise e
             
     def run_ocean(self):
         #get all addresses and amounts of all transactions received to the deposit address
@@ -57,9 +58,10 @@ class Watcher(DaemonThread):
         self.logger.info("Ocean checking eth deposits...")
         try:
             new_txs = self.eth.check_deposits(new_txs)
-        except FunctionTimedOut:
-            self.logger.info("eth.check_deposits() took too long")       
-            thread.interrupt_main() 
+        except FunctionTimedOut as e:
+            self.logger.info("eth.check_deposits() took too long")
+            thread.interrupt_main()
+            raise e
         self.logger.info("finished checking eth deposits.")
 
         if new_txs:
@@ -90,9 +92,10 @@ class Watcher(DaemonThread):
         self.logger.info("Getting eth burn txs...")
         try:
             received_txs = self.eth.get_burn_txs()
-        except FunctionTimedOut:
-            self.logger.info("eth.get_burn_txs() took too long")       
-            thread.interrupt_main() 
+        except FunctionTimedOut as e:
+            self.logger.info("eth.get_burn_txs() took too long")
+            thread.interrupt_main()
+            raise e
         self.logger.info("...finished getting eth burn txs.")
         
         if not received_txs:
