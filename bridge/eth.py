@@ -7,13 +7,13 @@ from eth_account import Account
 import collections
 from .utils import pub_bytes_to_eth_address
 import json
-from time import sleep, time
 import ssl
 import pathlib
 from .utils import PegID, Transfer, pub_bytes_to_eth_address, pub_to_dgld_address, compress
 from eth_account._utils.signing import extract_chain_id, to_standard_v
 from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
 from eth_account._utils.transactions import serializable_unsigned_transaction_from_dict
+from func_timeout import func_set_timeout
 
 class EthWalletError(Exception):
     def __init__(self, *args):
@@ -108,6 +108,7 @@ class EthWallet():
         self.minted={}
         self.update_minted(self.fromBlock)
 
+    @func_set_timeout(60)            
     def update_minted(self, fromBlock=None):
         self.logger.info("Eth updating minted...")
         if fromBlock == None:
@@ -125,7 +126,7 @@ class EthWallet():
             self.update_minted_from_events(entries, pegin_entries)
 
         self.logger.info("...eth finished updating minted.")
-        
+
     def update_minted_from_events(self, events, pegin_events):
         nonce_dict={}
         for event in pegin_events:
@@ -167,6 +168,7 @@ class EthWallet():
         self.pegout_txs=[]
         self.update_pegout_txs(self.fromBlock)
 
+    @func_set_timeout(60)            
     def update_pegout_txs(self, fromBlock=None):
         self.logger.info("Update pegout txs...")
         if fromBlock == None:
@@ -213,7 +215,7 @@ class EthWallet():
         if pegid in self.minted:
             return True
         return False
-                                            
+
     def check_deposits(self, new_txs: [Transfer]):
         if not new_txs:
             return
