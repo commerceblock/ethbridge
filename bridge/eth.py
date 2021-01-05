@@ -9,6 +9,7 @@ from .utils import pub_bytes_to_eth_address
 import json
 import ssl
 import pathlib
+from time import sleep
 from .utils import PegID, Transfer, pub_bytes_to_eth_address, pub_to_dgld_address, compress
 from eth_account._utils.signing import extract_chain_id, to_standard_v
 from eth_account._utils.transactions import ALLOWED_TRANSACTION_KEYS
